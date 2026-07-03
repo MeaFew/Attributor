@@ -173,6 +173,55 @@ revenue_i = coef_i · spend_i^gamma / (spend_i^gamma + tau_i^gamma)
 
 > **诚实的业务启示**：早期版本用**线性**响应函数，在总预算约束下最优解退化为平凡贪心——把预算挪向最高弹性渠道并外推到训练范围之外，得出 +1.8% 的虚高提升（线性模型隐含无限规模回报，本身无法支撑预算建议）。改用饱和响应后，在该品牌的当前运营点（各渠道已接近各自 `tau`）重新分配几乎无额外收益（≈0%），增量预算的边际收益也被饱和函数天然抑制——这正是预算优化应有的、诚实的结论：**当前分配已接近局部最优**。若要释放优化空间，需引入更强的特征（价格、促销、竞品）或在更细粒度（子渠道/时段）上建模。
 
+### 5. 预算优化的不确定性（`scripts/budget_uncertainty.py`）
+
+> 单点估计会害死人。第四节的优化器输出「google_video 应花 \$17,542」这样一个**单点**——CMO 拿它去砍预算时，隐含的假设是「我精确地知道最优分配」。但 Ridge 系数本身有噪声、训练样本只是历史的一小段，单点估计掩盖了真实的决策风险。本节给每个渠道的「最优 spend」与「revenue 提升」配 **95% 置信区间**，把项目从「会优化」升级为「懂决策风险」。
+
+#### 方法：block bootstrap（为什么不是朴素 bootstrap）
+
+朴素 case-resample（逐行有放回重抽样）假设样本独立同分布。但 MMM 残差**强自相关**——本项目 OLS 的 Durbin-Watson = **0.90**（无自相关应为 2.0）。在强自相关下逐行重抽样等于「假装样本独立」，会**系统性低估不确定性、CI 偏窄**，给决策者虚假的精确感。
+
+解决方案是 **block bootstrap**：把时间序列切成连续的 block（默认 7 天一块），**有放回重抽样整块、块内保持原始时间顺序**地拼成新训练集——保留块内自相关结构，得到诚实的不确定性区间。
+
+```
+朴素 case-resample          block bootstrap
+┌─────────────────┐         ┌──┬──┬──┬──┬──┐   原序列切成连续块
+│ 打乱时序        │         └──┴──┴──┴──┴──┘
+│ 假装 i.i.d.     │   vs.   ┌──┐┌──┐┌──┐┌──┐   有放回抽整块
+│ → CI 偏窄       │         │  ││  ││  ││  │   块内保序
+│ → 虚假精确感    │         └──┘└──┘└──┘└──┘
+└─────────────────┘         → CI 诚实（更宽）
+```
+
+> 这不是「为了显得更严谨而加复杂度」——是朴素法在这里**根本是错的**。`tests/test_uncertainty.py::TestBlockVsNaive` 直接证明：在 AR(1)=0.85 的自相关序列上，block 重抽样后 lag-1 自相关 ≈ 0.7（保留），naive 重抽样后坍缩到 ≈ 0（破坏）。CI 宽度上 block 均值区间是 naive 的数倍宽——这就是被自相关放大的、真实存在的不确定性。
+
+#### 结果（单品牌 913 行，block_size=7 天，N=200）
+
+每渠道最优 spend 的 95% CI（完整森林图见 `reports/images/budget_ci.png`，数据见 `reports/budget_uncertainty.json`）：
+
+| 渠道 | 点估计 | 中位 | 95% CI | CI 宽度 | block/naive |
+|------|-------:|-----:|--------|--------:|------------:|
+| **google_pmax** | \$80,043 | \$80,044 | [\$78,174, \$80,413] | \$2,238 | **9.3x** |
+| **meta_instagram** | \$240,627 | \$240,628 | [\$238,886, \$241,068] | \$2,182 | **9.1x** |
+| **meta_facebook** | \$634,590 | \$634,592 | [\$632,850, \$635,031] | \$2,182 | **9.1x** |
+| **google_video** | \$17,542 | \$17,544 | [\$16,374, \$18,335] | \$1,961 | **7.4x** |
+| google_paid_search | \$19,276 | \$19,292 | [\$18,703, \$23,764] | \$5,061 | 14.6x |
+| meta_other | \$531 | \$520 | [\$52, \$1,561] | \$1,509 | 1.0x |
+| **google_display** | \$7,061 | \$7,042 | [\$706, \$7,499] | \$6,793 | **17.8x** |
+| **google_shopping** | \$2,438 | \$2,440 | [\$244, \$7,320] | \$7,076 | 3.1x |
+
+> Revenue 提升点估计 ≈ 0.00%，block 95% CI = [0.00%, 0.08%]；Block bootstrap CI 平均是 naive 的 **8.9x** 宽。
+
+#### 诚实的解读：哪些结论可信、哪些不可信
+
+- **估计稳定的渠道**（CI 窄、相对点估计比例小）：`meta_facebook`、`meta_instagram`、`google_pmax`——这三者当前 spend 量级大（数十万级）、且已接近各自饱和点，bootstrap 重抽样后最优分配几乎不动。**对这三个渠道，单点估计可以作为决策依据。**
+- **估计不确定的渠道**（CI 极宽、下界逼近 0）：`google_display`（CI [\$706, \$7,499]，宽 \$6,793）、`google_shopping`（CI [\$244, \$7,320]）。**诚实地说：现有数据不支持对这两个渠道下强结论。** 它们的 Ridge 系数符号本身就不稳定（display 的 OLS 系数 p=0.31 不显著），优化器在「该砍」和「该加」之间反复横跳，CI 自然横跨整个允许区间。拿单点估计去砍这两个渠道的预算是危险的——需要更多数据（更长时间窗 / 价格促销特征）或更细分粒度才能定论。
+- **block vs naive 的倍数**说明朴素法在这些渠道上会把 CI 低估 7–18 倍。最后两列的 `block/naive` 比值越高，说明该渠道的不确定性越是被自相关主导——朴素法在那里错的越离谱。
+
+> 这是本项目最想传达的「懂决策风险」的深度：优化器不只输出一个数字，而是告诉你「这个数字有多可信」。CI 宽不代表模型失败，它诚实地反映了数据的信息量——宽 CI 本身就是一个有价值的决策输入（「这个渠道的结论不确定，先别动它」）。
+
+**配置**（`config.py` 集中管理，单点修改）：`BLOCK_SIZE_DAYS=7`、`N_BOOTSTRAP=200`、`BOOTSTRAP_CI_LEVEL=0.95`、`BOOTSTRAP_RANDOM_SEED=42`。复用而非复制 `mmm_model.fit_ridge` / `prepare_features` / `chronological_split` 与 `budget_optimizer.optimize_budget` / `extract_params` / `load_mmm_results`。
+
 ---
 
 ## 项目结构
@@ -185,7 +234,8 @@ attributor/
 │   ├── generate_touchpoints.py    # 基于真实渠道结构模拟 50K 用户旅程（fallback）
 │   ├── preprocess_criteo.py       # 将 Criteo impression 数据聚合为用户旅程
 │   ├── multi_touch_attribution.py # 6 种归因模型：First / Last / Linear / Time-decay / Shapley / Removal Effect
-│   └── budget_optimizer.py        # scipy.optimize SLSQP 预算约束优化
+│   ├── budget_optimizer.py        # scipy.optimize SLSQP 预算约束优化（饱和 Hill 响应）
+│   └── budget_uncertainty.py      # block bootstrap 给最优 spend 配 95% 置信区间（不确定性量化）
 ├── notebooks/
 │   └── 01_eda.ipynb               # 探索性数据分析
 ├── dashboard/
@@ -194,6 +244,7 @@ attributor/
 │   ├── test_algorithms.py         # 算法单元测试：6 归因模型（含 Shapley 数学正确性）+ MMM 三模型 + 预算优化器
 │   ├── test_preprocess.py         # 数据清洗单元测试
 │   ├── test_mmm.py                # 模型输出格式与统计量测试
+│   ├── test_uncertainty.py        # block bootstrap 不确定性：切块逻辑 / CI 覆盖率 / block vs naive 对比
 │   └── test_attribution.py        # 归因归一化与边界条件测试
 ├── data/
 │   ├── raw/                       # Conjura MMM dataset（figshare）
