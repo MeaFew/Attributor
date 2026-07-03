@@ -1,84 +1,58 @@
-<p align="center">
-  <h1 align="center">Marketing Attribution & Budget Optimization</h1>
-  <p align="center">
-    <b>从宏观 MMM 到微观多触点归因的全链路营销效果评估与预算优化系统</b>
-  </p>
-  <p align="center">
-    <a href="https://github.com/MeaFew/attributor/actions"><img src="https://github.com/MeaFew/attributor/workflows/CI/badge.svg" alt="CI"></a>
-    <img src="https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white" alt="Python">
-    <img src="https://img.shields.io/badge/code%20style-ruff-000000?logo=ruff&logoColor=white" alt="Ruff">
-    <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
-  </p>
-  <p align="center">
-    <b>中文</b> | <a href="./README.en.md">English</a>
-  </p>
-</p>
+<div align="center">
+
+# Marketing Attribution & Budget Optimization
+
+**从宏观 MMM 到微观多触点归因，再到预算优化的不确定性量化**
+
+*MMM · 多触点归因 · 预算优化 · block bootstrap 置信区间*
+
+<a href="https://github.com/MeaFew/attributor/actions"><img src="https://github.com/MeaFew/attributor/workflows/CI/badge.svg" alt="CI"></a>
+<img src="https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white" alt="Python">
+<img src="https://img.shields.io/badge/code%20style-ruff-000000?logo=ruff&logoColor=white" alt="Ruff">
+<img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
+
+**中文** | <a href="./README.en.md">English</a>
+
+</div>
 
 ---
 
-## 项目概览
+## 核心结论
 
-本系统基于 figshare 发布的「Conjura Multi-Region MMM Dataset」（覆盖约 100 个电商品牌、19 个地区、2019–2024 年共 132,759 条日粒度记录），构建了一套从**宏观营销组合建模（MMM）**到**微观用户旅程归因**再到**预算约束优化**的完整分析链路。
+> **预算优化的「0% 提升」不是无解，而是诚实结论**。饱和响应模型表明当前分配已近局部最优（revenue 提升点估计 ≈ **0.0%**）；但 block bootstrap 揭示真正的决策风险——95% 置信区间是朴素逐行重抽样的 **8.9 倍宽**，单点估计会让决策者基于虚假精确感砍预算。本项目不止输出「该花多少」，更回答「这个数字有多可信」。
 
-核心解决的业务问题：
+<div align="center">
 
-- **渠道 ROI 量化困难**：多个渠道同时投放时，如何剥离各渠道对转化的真实贡献？
-- **归因模型选择无依据**：First-touch、Last-touch、Shapley Value、移除效应分析 (Removal Effect) 等方法结论差异巨大，如何系统比较？
-- **预算分配凭经验**：在总预算约束下，如何科学重新分配各渠道 spend 以最大化 revenue？
+**每渠道最优预算的 95% 置信区间（单品牌 913 行 · block_size=7 天 · N=200）**
 
----
+| 渠道 | 点估计 | block 95% CI | block/naive 宽度比 |
+|------|-------:|--------------|:------------------:|
+| **meta_facebook** | \$634,590 | [\$632,850, \$635,031] | **9.1x** |
+| **meta_instagram** | \$240,627 | [\$238,886, \$241,068] | **9.1x** |
+| **google_pmax** | \$80,043 | [\$78,174, \$80,413] | **9.3x** |
+| **google_video** | \$17,542 | [\$16,374, \$18,335] | **7.4x** |
+| google_paid_search | \$19,276 | [\$18,703, \$23,764] | 14.6x |
+| **google_display** ⚠️ | \$7,061 | [\$706, \$7,499] | **17.8x** |
+| **google_shopping** ⚠️ | \$2,438 | [\$244, \$7,320] | 3.1x |
+| meta_other | \$531 | [\$52, \$1,561] | 1.0x |
 
-## 技术架构
+> ⚠️ = 置信区间逼近 0、系数符号不稳定的渠道——**现有数据不支持对其下强结论**。
 
-```mermaid
-flowchart LR
-    A[Raw CSV<br/>132K rows x 50 cols] --> B[Polars ETL]
-    B --> C[Parquet]
-    C --> D[MMM Modeling<br/>OLS / Ridge / Lasso]
-    C --> E[User Journey<br/>Criteo 16.5M]
-    E --> F[6 Attribution Models]
-    D --> G[Budget Optimizer<br/>scipy SLSQP]
-    F --> G
-    G --> H[Streamlit Dashboard]
-```
+**Ridge MMM holdout R² = 0.42**（OLS in-sample 0.54 / holdout 0.44），Revenue 提升 CI = [0.00%, 0.08%]。
 
-| 层级 | 技术选型 | 设计理由 |
-|------|---------|---------|
-| 数据清洗 | **Polars** | 向量化执行 + 惰性求值，处理 132K 行毫秒级 |
-| 存储 | Parquet | 列式压缩，高效读写 |
-| 宏观建模 | **statsmodels** + **scikit-learn** | OLS 提供完整统计推断（p-value、置信区间）；Ridge/Lasso 处理渠道间共线性 |
-| 微观归因 | 自研 6 种模型 | 覆盖规则类（First/Last/Linear/Time-decay）与博弈论类（Shapley/移除效应分析），便于横向对比 |
-| 预算优化 | **scipy.optimize** SLSQP | 支持等式约束（总预算不变）与不等式约束（单渠道下限），收敛稳定 |
-| 交付 | **Streamlit** + **Plotly** | 三页交互看板：MMM 概览 / 归因对比 / 预算模拟器 |
+<details>
+<summary><b>📊 查看预算置信区间森林图（block bootstrap 的代表性成果图）</b></summary>
 
----
+<img src="reports/images/budget_ci.png" alt="预算置信区间森林图：block vs naive 95% CI 对比" width="820">
 
-## 快速开始
+</details>
 
-```bash
-git clone https://github.com/MeaFew/attributor.git
-cd attributor
+</div>
 
-# 1. 下载 MMM 数据集（GitHub Releases，约 31MB）
-bash download_data.sh
+> **为什么是 8.9 倍**：MMM 残差强自相关（OLS Durbin-Watson = **0.90**，无自相关应为 2.0）。朴素 case-resample 逐行重抽样「假装样本独立」，系统性低估不确定性、CI 偏窄，给决策者虚假精确感。block bootstrap 把时间序列切成 7 天整块、有放回重抽整块并保持块内时序，保留自相关结构，得到诚实（更宽）的区间。`tests/test_uncertainty.py::TestBlockVsNaive` 直接证明：在 AR(1)=0.85 序列上，naive 重抽样把 lag-1 自相关从 0.85 破坏到 ≈0，block 重抽样保留 ≈0.7。
 
-# 2.（可选但推荐）下载真实归因数据集 Criteo Attribution Modeling for Bidding Dataset
-#    约 623MB，下载后放到 data/raw/criteo_attribution_dataset.tsv.gz
-#    官方：https://ailab.criteo.com/criteo-attribution-modeling-bidding-dataset/
-
-# 安装依赖并运行
-make setup        # 创建虚拟环境 + 安装依赖
-make all
-# Windows (无 GNU Make): python run_all.py          # 运行完整管线：清洗 → MMM → 归因 → 优化
-#                                                     归因步骤自动判断：有 Criteo 原始数据则走真实
-#                                                     preprocess_criteo，否则 fallback 到 generate_touchpoints 合成
-make dashboard    # 启动 Streamlit 交互看板
-make verify       # 本地质量门（lint + format + test + audit）
-```
-
----
-
-## 核心模块
+<details>
+<summary><b>🔧 核心模块详解（5 个模块的完整方法、结果表与诚实解读）</b></summary>
 
 ### 1. 数据预处理（`scripts/preprocess.py`）
 
@@ -195,23 +169,6 @@ revenue_i = coef_i · spend_i^gamma / (spend_i^gamma + tau_i^gamma)
 
 > 这不是「为了显得更严谨而加复杂度」——是朴素法在这里**根本是错的**。`tests/test_uncertainty.py::TestBlockVsNaive` 直接证明：在 AR(1)=0.85 的自相关序列上，block 重抽样后 lag-1 自相关 ≈ 0.7（保留），naive 重抽样后坍缩到 ≈ 0（破坏）。CI 宽度上 block 均值区间是 naive 的数倍宽——这就是被自相关放大的、真实存在的不确定性。
 
-#### 结果（单品牌 913 行，block_size=7 天，N=200）
-
-每渠道最优 spend 的 95% CI（完整森林图见 `reports/images/budget_ci.png`，数据见 `reports/budget_uncertainty.json`）：
-
-| 渠道 | 点估计 | 中位 | 95% CI | CI 宽度 | block/naive |
-|------|-------:|-----:|--------|--------:|------------:|
-| **google_pmax** | \$80,043 | \$80,044 | [\$78,174, \$80,413] | \$2,238 | **9.3x** |
-| **meta_instagram** | \$240,627 | \$240,628 | [\$238,886, \$241,068] | \$2,182 | **9.1x** |
-| **meta_facebook** | \$634,590 | \$634,592 | [\$632,850, \$635,031] | \$2,182 | **9.1x** |
-| **google_video** | \$17,542 | \$17,544 | [\$16,374, \$18,335] | \$1,961 | **7.4x** |
-| google_paid_search | \$19,276 | \$19,292 | [\$18,703, \$23,764] | \$5,061 | 14.6x |
-| meta_other | \$531 | \$520 | [\$52, \$1,561] | \$1,509 | 1.0x |
-| **google_display** | \$7,061 | \$7,042 | [\$706, \$7,499] | \$6,793 | **17.8x** |
-| **google_shopping** | \$2,438 | \$2,440 | [\$244, \$7,320] | \$7,076 | 3.1x |
-
-> Revenue 提升点估计 ≈ 0.00%，block 95% CI = [0.00%, 0.08%]；Block bootstrap CI 平均是 naive 的 **8.9x** 宽。
-
 #### 诚实的解读：哪些结论可信、哪些不可信
 
 - **估计稳定的渠道**（CI 窄、相对点估计比例小）：`meta_facebook`、`meta_instagram`、`google_pmax`——这三者当前 spend 量级大（数十万级）、且已接近各自饱和点，bootstrap 重抽样后最优分配几乎不动。**对这三个渠道，单点估计可以作为决策依据。**
@@ -222,9 +179,71 @@ revenue_i = coef_i · spend_i^gamma / (spend_i^gamma + tau_i^gamma)
 
 **配置**（`config.py` 集中管理，单点修改）：`BLOCK_SIZE_DAYS=7`、`N_BOOTSTRAP=200`、`BOOTSTRAP_CI_LEVEL=0.95`、`BOOTSTRAP_RANDOM_SEED=42`。复用而非复制 `mmm_model.fit_ridge` / `prepare_features` / `chronological_split` 与 `budget_optimizer.optimize_budget` / `extract_params` / `load_mmm_results`。
 
+</details>
+
 ---
 
-## 项目结构
+## 快速开始
+
+```bash
+git clone https://github.com/MeaFew/attributor.git
+cd attributor
+
+# 1. 下载 MMM 数据集（GitHub Releases，约 31MB）
+bash download_data.sh
+
+# 2.（可选但推荐）下载真实归因数据集 Criteo Attribution Modeling for Bidding Dataset
+#    约 623MB，下载后放到 data/raw/criteo_attribution_dataset.tsv.gz
+#    官方：https://ailab.criteo.com/criteo-attribution-modeling-bidding-dataset/
+
+# 安装依赖并运行
+make setup        # 创建虚拟环境 + 安装依赖
+make all
+# Windows (无 GNU Make): python run_all.py          # 运行完整管线：清洗 → MMM → 归因 → 优化
+#                                                     归因步骤自动判断：有 Criteo 原始数据则走真实
+#                                                     preprocess_criteo，否则 fallback 到 generate_touchpoints 合成
+make dashboard    # 启动 Streamlit 交互看板
+make verify       # 本地质量门（lint + format + test + audit）
+```
+
+<details>
+<summary><b>📂 项目概览 / 技术架构 / 业务问题</b></summary>
+
+本系统基于 figshare 发布的「Conjura Multi-Region MMM Dataset」（覆盖约 100 个电商品牌、19 个地区、2019–2024 年共 132,759 条日粒度记录），构建了一套从**宏观营销组合建模（MMM）**到**微观用户旅程归因**再到**预算约束优化**的完整分析链路。
+
+核心解决的业务问题：
+
+- **渠道 ROI 量化困难**：多个渠道同时投放时，如何剥离各渠道对转化的真实贡献？
+- **归因模型选择无依据**：First-touch、Last-touch、Shapley Value、移除效应分析 (Removal Effect) 等方法结论差异巨大，如何系统比较？
+- **预算分配凭经验**：在总预算约束下，如何科学重新分配各渠道 spend 以最大化 revenue？
+
+### 技术架构
+
+```mermaid
+flowchart LR
+    A[Raw CSV<br/>132K rows x 50 cols] --> B[Polars ETL]
+    B --> C[Parquet]
+    C --> D[MMM Modeling<br/>OLS / Ridge / Lasso]
+    C --> E[User Journey<br/>Criteo 16.5M]
+    E --> F[6 Attribution Models]
+    D --> G[Budget Optimizer<br/>scipy SLSQP]
+    F --> G
+    G --> H[Streamlit Dashboard]
+```
+
+| 层级 | 技术选型 | 设计理由 |
+|------|---------|---------|
+| 数据清洗 | **Polars** | 向量化执行 + 惰性求值，处理 132K 行毫秒级 |
+| 存储 | Parquet | 列式压缩，高效读写 |
+| 宏观建模 | **statsmodels** + **scikit-learn** | OLS 提供完整统计推断（p-value、置信区间）；Ridge/Lasso 处理渠道间共线性 |
+| 微观归因 | 自研 6 种模型 | 覆盖规则类（First/Last/Linear/Time-decay）与博弈论类（Shapley/移除效应分析），便于横向对比 |
+| 预算优化 | **scipy.optimize** SLSQP | 支持等式约束（总预算不变）与不等式约束（单渠道下限），收敛稳定 |
+| 交付 | **Streamlit** + **Plotly** | 三页交互看板：MMM 概览 / 归因对比 / 预算模拟器 |
+
+</details>
+
+<details>
+<summary><b>📁 项目结构</b></summary>
 
 ```
 attributor/
@@ -257,9 +276,10 @@ attributor/
 └── .github/workflows/ci.yml       # GitHub Actions：lint + test + docker-build
 ```
 
----
+</details>
 
-## 局限与生产化思考
+<details>
+<summary><b>⚠️ 局限与生产化思考</b></summary>
 
 | 局限 | 当前方案 | 生产化路径 |
 |------|---------|-----------|
@@ -268,6 +288,8 @@ attributor/
 | 无竞争环境变量 | 模型假设市场份额不变 | 引入竞品 spend 数据（如 Pathmatics、Sensor Tower） |
 | 单节点执行 | 本地 Parquet | 迁移至 Snowflake/BigQuery + dbt 管线编排 |
 | 预算优化为静态 | 一次性求解，未考虑动态预算调整 | 强化学习（PPO / MADDPG）实现实时预算竞价 |
+
+</details>
 
 ---
 
@@ -278,8 +300,10 @@ attributor/
 | 电商用户行为分析 | [MeaFew/shoplytics](https://github.com/MeaFew/shoplytics) | 2,900万条真实用户行为数据，10大分析模块 |
 | 信用风险评分 | [MeaFew/riskscore](https://github.com/MeaFew/riskscore) | WOE/IV + XGBoost/LightGBM + SHAP 可解释性 |
 | 多元时序预测 | [MeaFew/foresight](https://github.com/MeaFew/foresight) | LSTM / Transformer / XGBoost 时序预测对比 |
-
 | 图神经网络反欺诈 | [MeaFew/graphguard](https://github.com/MeaFew/graphguard) | 图神经网络非法交易检测 |
+
+---
+
 ## 许可证
 
 代码采用 MIT License。数据集来源于 figshare 公开发布的 Conjura MMM Dataset，遵循其使用条款。
