@@ -13,15 +13,14 @@ from pathlib import Path
 
 import polars as pl
 
-repo_root = Path(__file__).parents[1].resolve()
-if str(repo_root) not in sys.path:
-    sys.path.insert(0, str(repo_root))
-
-from config import (
+from attributor.config import (
     CRITEO_JOURNEYS_PATH,
     CRITEO_RAW_PATH,
     CRITEO_TOUCHPOINTS_PATH,
 )
+from attributor.logging_setup import get_logger, setup_logging
+
+logger = get_logger(__name__)
 
 # Number of top campaigns to keep as individual channels.
 # Remaining campaigns are grouped into an "other" bucket.
@@ -55,12 +54,12 @@ def preprocess_criteo(
     output_journeys: Path | None = None,
 ) -> tuple[pl.DataFrame, pl.DataFrame]:
     """Convert Criteo impression data into touchpoints and journeys."""
-    print(f"Reading Criteo data from {raw_path}...")
+    logger.info(f"Reading Criteo data from {raw_path}...")
     cols = ["timestamp", "uid", "campaign", "conversion"]
     df = pl.read_csv(raw_path, separator="\t", columns=cols)
-    print(f"  Loaded {df.height:,} impressions, {df['uid'].n_unique():,} users")
+    logger.info(f"  Loaded {df.height:,} impressions, {df['uid'].n_unique():,} users")
 
-    print(f"\nBuilding channel mapping (top {top_n} campaigns)...")
+    logger.info(f"\nBuilding channel mapping (top {top_n} campaigns)...")
     channel_mapping = build_channel_mapping(df, top_n=top_n)
     top_campaign_ids = set(channel_mapping.keys())
     df = df.with_columns(
@@ -70,8 +69,8 @@ def preprocess_criteo(
         .alias("channel")
     )
 
-    print("\nChannel distribution:")
-    print(
+    logger.info("\nChannel distribution:")
+    logger.info(
         df.group_by("channel")
         .agg(
             pl.len().alias("impressions"),
@@ -80,7 +79,7 @@ def preprocess_criteo(
         .sort("impressions", descending=True)
     )
 
-    print("\nAggregating into user journeys (this may take ~1 minute)...")
+    logger.info("\nAggregating into user journeys (this may take ~1 minute)...")
     # Sort by user and timestamp to build ordered paths
     df = df.sort(["uid", "timestamp"])
 
@@ -130,14 +129,14 @@ def preprocess_criteo(
     touchpoints_df.write_parquet(tp_out)
     journeys_df.write_parquet(j_out)
 
-    print(f"\n  Touchpoints: {touchpoints_df.height:,} rows -> {tp_out}")
-    print(
+    logger.info(f"\n  Touchpoints: {touchpoints_df.height:,} rows -> {tp_out}")
+    logger.info(
         f"  Journeys: {journeys_df.height:,} rows "
         f"({journeys_df['converted'].sum():,} converters) -> {j_out}"
     )
 
-    print("\nPath length distribution:")
-    print(
+    logger.info("\nPath length distribution:")
+    logger.info(
         journeys_df.group_by("path_length")
         .agg(pl.len().alias("count"))
         .sort("path_length")
@@ -164,4 +163,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    setup_logging()
     main()

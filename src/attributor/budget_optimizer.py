@@ -8,16 +8,15 @@ import numpy as np
 import polars as pl
 from scipy.optimize import minimize
 
-repo_root = Path(__file__).parents[1].resolve()
-if str(repo_root) not in sys.path:
-    sys.path.insert(0, str(repo_root))
-
-from config import (
+from attributor.config import (
     CLEANED_PARQUET_PATH,
     HILL_GAMMA,
     MODEL_OUTPUT_DIR,
     SPEND_CHANNELS,
 )
+from attributor.logging_setup import get_logger, setup_logging
+
+logger = get_logger(__name__)
 
 
 def load_mmm_results() -> dict:
@@ -27,12 +26,12 @@ def load_mmm_results() -> dict:
         with open(path) as f:
             data = json.load(f)
     except FileNotFoundError:
-        print(f"ERROR: MMM results not found at {path}")
-        print("Run 'python scripts/mmm_model.py' first to generate results.")
+        logger.info(f"ERROR: MMM results not found at {path}")
+        logger.info("Run 'python scripts/mmm_model.py' first to generate results.")
         sys.exit(1)
     except json.JSONDecodeError as e:
-        print(f"ERROR: Failed to parse MMM results: {e}")
-        print("The file may be corrupted. Re-run 'python scripts/mmm_model.py'.")
+        logger.info(f"ERROR: Failed to parse MMM results: {e}")
+        logger.info("The file may be corrupted. Re-run 'python scripts/mmm_model.py'.")
         sys.exit(1)
     return data
 
@@ -230,11 +229,11 @@ def main() -> None:
                 else:
                     current_spend[ch] = 0.0
     except (OSError, pl.exceptions.PolarsError, pl.exceptions.ArrowError) as e:
-        print(f"Warning: Could not load cleaned data: {e}")
-        print("Using zero baseline for all channels.")
+        logger.info(f"Warning: Could not load cleaned data: {e}")
+        logger.info("Using zero baseline for all channels.")
         current_spend = {ch: 0.0 for ch in SPEND_CHANNELS}
 
-    print("Running budget optimization...")
+    logger.info("Running budget optimization...")
     scenarios = scenario_analysis(current_spend, elasticities, intercept)
 
     # Save results
@@ -242,25 +241,26 @@ def main() -> None:
     out = MODEL_OUTPUT_DIR / "budget_optimization.json"
     with open(out, "w") as f:
         json.dump(scenarios, f, indent=2)
-    print(f"  Saved scenarios to {out}")
+    logger.info(f"  Saved scenarios to {out}")
 
     # Print summary
     for name, result in scenarios.items():
-        print(f"\nScenario: {name}")
-        print(f"  Total budget: ${result['total_budget']:,.0f}")
-        print(
+        logger.info(f"\nScenario: {name}")
+        logger.info(f"  Total budget: ${result['total_budget']:,.0f}")
+        logger.info(
             f"  Predicted revenue: ${result['current_revenue']:,.0f} -> ${result['optimal_revenue']:,.0f}"
         )
-        print(f"  Improvement: {result['improvement_pct']:.1f}%")
-        print("  Top reallocation:")
+        logger.info(f"  Improvement: {result['improvement_pct']:.1f}%")
+        logger.info("  Top reallocation:")
         changes = {
             c: result["optimal_spend"][c] - result["current_spend"][c] for c in result["channels"]
         }
         for ch, delta in sorted(changes.items(), key=lambda x: abs(x[1]), reverse=True)[:5]:
-            print(
+            logger.info(
                 f"    {ch}: ${result['current_spend'][ch]:,.0f} -> ${result['optimal_spend'][ch]:,.0f} ({delta:+,.0f})"
             )
 
 
 if __name__ == "__main__":
+    setup_logging()
     main()

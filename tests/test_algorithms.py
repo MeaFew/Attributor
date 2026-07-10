@@ -12,19 +12,15 @@ import numpy as np
 import polars as pl
 import pytest
 
-repo_root = Path(__file__).parents[1].resolve()
-if str(repo_root) not in sys.path:
-    sys.path.insert(0, str(repo_root))
-
-from scripts.budget_optimizer import extract_params, optimize_budget  # noqa: E402
-from scripts.mmm_model import (  # noqa: E402
+from attributor.budget_optimizer import extract_params, optimize_budget  # noqa: E402
+from attributor.mmm_model import (  # noqa: E402
     chronological_split,
     fit_lasso,
     fit_ols,
     fit_ridge,
     prepare_features,
 )
-from scripts.multi_touch_attribution import (  # noqa: E402
+from attributor.multi_touch_attribution import (  # noqa: E402
     first_touch_attribution,
     last_touch_attribution,
     linear_attribution,

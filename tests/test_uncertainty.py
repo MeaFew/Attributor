@@ -15,11 +15,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-repo_root = Path(__file__).parents[1].resolve()
-if str(repo_root) not in sys.path:
-    sys.path.insert(0, str(repo_root))
-
-from scripts.budget_uncertainty import (  # noqa: E402
+from attributor.budget_uncertainty import (  # noqa: E402
     block_resample_indices,
     case_resample_indices,
     make_blocks,

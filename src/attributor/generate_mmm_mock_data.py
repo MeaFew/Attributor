@@ -13,11 +13,7 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
-repo_root = Path(__file__).parents[1].resolve()
-if str(repo_root) not in sys.path:
-    sys.path.insert(0, str(repo_root))
-
-from config import (
+from attributor.config import (
     CLICK_CHANNELS,
     IMPRESSION_CHANNELS,
     ORGANIC_CHANNELS,
@@ -28,6 +24,9 @@ from config import (
     TARGET_NEW_CUSTOMERS,
     TARGET_NEW_REVENUE,
 )
+from attributor.logging_setup import get_logger, setup_logging
+
+logger = get_logger(__name__)
 
 
 def generate_mock_mmm_data(
@@ -172,11 +171,12 @@ def main() -> None:
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
 
-    print(f"Generating synthetic MMM data ({args.n_rows:,} rows) ...")
+    logger.info(f"Generating synthetic MMM data ({args.n_rows:,} rows) ...")
     df = generate_mock_mmm_data(n_rows=args.n_rows)
     df.write_csv(out)
-    print(f"Saved to {out} ({df.height:,} rows x {df.width} columns)")
+    logger.info(f"Saved to {out} ({df.height:,} rows x {df.width} columns)")
 
 
 if __name__ == "__main__":
+    setup_logging()
     main()

@@ -1,19 +1,13 @@
 """Streamlit dashboard for Marketing Attribution & Budget Optimization."""
 
 import json
-import sys
-from pathlib import Path
 
 import plotly.express as px
 import plotly.graph_objects as go
 import polars as pl
 import streamlit as st
 
-repo_root = Path(__file__).parents[1].resolve()
-if str(repo_root) not in sys.path:
-    sys.path.insert(0, str(repo_root))
-
-from config import IMAGES_DIR, MODEL_OUTPUT_DIR
+from attributor.config import IMAGES_DIR, MODEL_OUTPUT_DIR
 
 st.set_page_config(page_title="Marketing Attribution", layout="wide")
 

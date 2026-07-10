@@ -1,10 +1,11 @@
 """Marketing Attribution & Budget Optimization - Centralized Configuration."""
+
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Project paths
+# Project paths (resolved from project root, two parents up from src/attributor/)
 # ---------------------------------------------------------------------------
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
 PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed"
 REPORTS_DIR = PROJECT_ROOT / "reports"
@@ -40,6 +41,7 @@ def ensure_dirs() -> None:
     """
     for d in [RAW_DATA_DIR, PROCESSED_DATA_DIR, REPORTS_DIR, IMAGES_DIR, MODEL_OUTPUT_DIR]:
         d.mkdir(parents=True, exist_ok=True)
+
 
 # ---------------------------------------------------------------------------
 # Analysis constants
@@ -128,10 +130,10 @@ HILL_GAMMA = 1.5
 # 等于假设样本独立同分布，系统性低估不确定性、CI 偏窄。block bootstrap 按
 # 时间分块、块内保持原始顺序地重抽样，保留块内自相关结构，得到诚实的不
 # 确定性区间。详见 scripts/budget_uncertainty.py。
-BLOCK_SIZE_DAYS = 7          # 连续时间块长度（天）；块内保留自相关
-N_BOOTSTRAP = 200            # bootstrap 重抽样次数（每次重拟合 Ridge + 重跑优化）
-BOOTSTRAP_CI_LEVEL = 0.95    # 置信区间水平（百分位法 [2.5%, 97.5%]）
-BOOTSTRAP_RANDOM_SEED = 42   # 固定种子保证结果可复现
+BLOCK_SIZE_DAYS = 7  # 连续时间块长度（天）；块内保留自相关
+N_BOOTSTRAP = 200  # bootstrap 重抽样次数（每次重拟合 Ridge + 重跑优化）
+BOOTSTRAP_CI_LEVEL = 0.95  # 置信区间水平（百分位法 [2.5%, 97.5%]）
+BOOTSTRAP_RANDOM_SEED = 42  # 固定种子保证结果可复现
 
 # Simulation parameters for touchpoint data
 SIMULATION_PARAMS = {

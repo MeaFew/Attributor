@@ -1,51 +1,56 @@
-.PHONY: setup preprocess eda mmm attribution attribution-simulated optimize dashboard test verify clean
+.PHONY: setup preprocess eda mmm attribution attribution-simulated optimize dashboard test typecheck verify clean
 
 # ============================================================
 # Marketing Attribution & Budget Optimization
 # ============================================================
 
 setup:
-	pip install -r requirements.txt
+	pip install -r requirements.lock
+	pip install -e ".[dev]"
+	pre-commit install
 
 preprocess:
-	python scripts/preprocess.py
+	python -m attributor.preprocess
 
 eda:
 	jupyter notebook notebooks/01_eda.ipynb
 
 mmm:
-	python scripts/mmm_model.py
+	python -m attributor.mmm_model
 
 attribution:
-	python scripts/preprocess_criteo.py
-	python scripts/multi_touch_attribution.py
+	python -m attributor.preprocess_criteo
+	python -m attributor.multi_touch_attribution
 
 attribution-simulated:
-	python scripts/generate_touchpoints.py
-	python scripts/multi_touch_attribution.py --touchpoints data/processed/simulated_touchpoints.parquet --journeys data/processed/simulated_journeys.parquet
+	python -m attributor.generate_touchpoints
+	python -m attributor.multi_touch_attribution --touchpoints data/processed/simulated_touchpoints.parquet --journeys data/processed/simulated_journeys.parquet
 
 optimize:
-	python scripts/budget_optimizer.py
+	python -m attributor.budget_optimizer
 
 dashboard:
 	streamlit run dashboard/app.py
 
 test:
-	pytest tests/ -v
+	pytest tests/ -v --cov=attributor --cov-report=term-missing --cov-fail-under=20
+
+typecheck:
+	mypy src/attributor
 
 lint:
-	ruff check scripts/ dashboard/ tests/
+	ruff check src/ tests/ dashboard/
 
 format:
-	ruff format scripts/ dashboard/ tests/
+	ruff format src/ tests/ dashboard/
 
 format-check:
-	ruff format --check scripts/ dashboard/ tests/
+	ruff format --check src/ tests/ dashboard/
 
 audit:
-	python scripts/audit_consistency.py
+	python -m attributor.audit_consistency
 
-verify: lint format-check test audit
+verify: lint format-check typecheck test audit
 
 all: preprocess mmm attribution optimize
 

@@ -8,11 +8,7 @@ from pathlib import Path
 
 import polars as pl
 
-repo_root = Path(__file__).parents[1].resolve()
-if str(repo_root) not in sys.path:
-    sys.path.insert(0, str(repo_root))
-
-from config import (
+from attributor.config import (
     ADSTOCK_DECAY,
     CLEANED_PARQUET_PATH,
     CLICK_CHANNELS,
@@ -25,11 +21,14 @@ from config import (
     TARGET_NEW_CUSTOMERS,
     TARGET_NEW_REVENUE,
 )
+from attributor.logging_setup import get_logger, setup_logging
+
+logger = get_logger(__name__)
 
 
 def load_raw_data(path: Path) -> pl.DataFrame:
     """Load raw CSV with proper dtypes."""
-    print(f"Loading raw data from {path} ...")
+    logger.info(f"Loading raw data from {path} ...")
     df = pl.read_csv(path, try_parse_dates=True, null_values=[""])
     # Ensure date_day is Date type
     if df["date_day"].dtype != pl.Date:
@@ -58,7 +57,7 @@ def load_raw_data(path: Path) -> pl.DataFrame:
                 pl.col(col_name).str.replace_all(",", "").cast(pl.Float64).alias(col_name)
             )
 
-    print(f"  Loaded {df.height:,} rows x {df.width} columns")
+    logger.info(f"  Loaded {df.height:,} rows x {df.width} columns")
     return df
 
 
@@ -197,7 +196,7 @@ def filter_extreme_outliers(df: pl.DataFrame) -> pl.DataFrame:
     )
     after = df.height
     if before != after:
-        print(f"  Removed {before - after:,} outlier rows (>5σ)")
+        logger.info(f"  Removed {before - after:,} outlier rows (>5σ)")
     df = df.drop(["_mean_revenue", "_std_revenue"])
     return df
 
@@ -214,11 +213,12 @@ def preprocess(output_path: Path | None = None) -> pl.DataFrame:
     out = output_path or CLEANED_PARQUET_PATH
     out.parent.mkdir(parents=True, exist_ok=True)
     df.write_parquet(out)
-    print(f"Saved cleaned data to {out} ({df.height:,} rows)")
+    logger.info(f"Saved cleaned data to {out} ({df.height:,} rows)")
     return df
 
 
 if __name__ == "__main__":
+    setup_logging()
     parser = argparse.ArgumentParser(description="Preprocess Conjura MMM data")
     parser.add_argument("--output", type=str, default=None, help="Output Parquet path")
     args = parser.parse_args()

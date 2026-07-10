@@ -3,15 +3,20 @@
 Run after `make all` to verify that key metrics declared in README.md
 match the actual values produced by the pipeline.
 
-Usage: python scripts/audit_consistency.py
+Usage: python -m attributor.audit_consistency
 
 Add project-specific checks in the `main()` function.
 """
 
 import json
+import logging
 import re
 import sys
 from pathlib import Path
+
+from attributor.logging_setup import get_logger, setup_logging
+
+logger = get_logger(__name__)
 
 # Defensive: avoid UnicodeEncodeError on Windows consoles using GBK code page.
 if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
@@ -21,14 +26,14 @@ if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
 def check(condition: bool, msg: str) -> bool:
     """Assert-like check that prints pass/fail."""
     if condition:
-        print(f"  PASS: {msg}")
+        logger.info(f"  PASS: {msg}")
     else:
-        print(f"  FAIL: {msg}")
+        logger.info(f"  FAIL: {msg}")
     return condition
 
 
 def main():
-    root = Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parents[2]
     readme = root / "README.md"
     passed = 0
     failed = 0
@@ -59,8 +64,8 @@ def main():
             failed += 1
             check(False, "R^2 (Ridge): could not extract from README.md")
     else:
-        print(f"  SKIP: mmm_results.json not found at {mmm_path}")
-        print("         Run 'python scripts/mmm_model.py' first.")
+        logger.info(f"  SKIP: mmm_results.json not found at {mmm_path}")
+        logger.info("         Run 'python scripts/mmm_model.py' first.")
 
     # --- Check 2: Attribution percentages sum to ~100% per model ---
     attr_path = root / "data" / "processed" / "models" / "attribution_comparison.json"
@@ -78,8 +83,8 @@ def main():
             else:
                 failed += 1
     else:
-        print(f"  SKIP: attribution_comparison.json not found at {attr_path}")
-        print("         Run 'python scripts/multi_touch_attribution.py' first.")
+        logger.info(f"  SKIP: attribution_comparison.json not found at {attr_path}")
+        logger.info("         Run 'python scripts/multi_touch_attribution.py' first.")
 
     # --- Check 3: Exactly 6 attribution models in attribution_comparison.json ---
     # The pipeline ships 6 models (First/Last/Linear/TimeDecay/Shapley/Removal).
@@ -101,15 +106,16 @@ def main():
     # --- Summary ---
     total = passed + failed
     if total == 0:
-        print("No checks configured. Add project-specific checks to main().")
+        logger.info("No checks configured. Add project-specific checks to main().")
         return
 
-    print(f"\n{'=' * 40}")
-    print(f"Results: {passed}/{total} passed, {failed} failed")
+    logger.info(f"\n{'=' * 40}")
+    logger.info(f"Results: {passed}/{total} passed, {failed} failed")
     if failed > 0:
-        print("ACTION: Update README.md or pipeline to resolve mismatches.")
+        logger.info("ACTION: Update README.md or pipeline to resolve mismatches.")
         sys.exit(1)
 
 
 if __name__ == "__main__":
+    setup_logging()
     main()

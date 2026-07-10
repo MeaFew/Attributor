@@ -10,11 +10,7 @@ from pathlib import Path
 
 import polars as pl
 
-repo_root = Path(__file__).parents[1].resolve()
-if str(repo_root) not in sys.path:
-    sys.path.insert(0, str(repo_root))
-
-from config import (
+from attributor.config import (
     ATTRIBUTION_HALF_LIFE_DAYS,
     CRITEO_JOURNEYS_PATH,
     CRITEO_TOUCHPOINTS_PATH,
@@ -22,6 +18,9 @@ from config import (
     SIMULATED_JOURNEYS_PATH,
     SIMULATED_TOUCHPOINTS_PATH,
 )
+from attributor.logging_setup import get_logger, setup_logging
+
+logger = get_logger(__name__)
 
 
 def load_data(
@@ -36,7 +35,9 @@ def load_data(
     j_path = journeys_path or CRITEO_JOURNEYS_PATH
 
     if not tp_path.exists() or not j_path.exists():
-        print(f"Criteo data not found at {tp_path} / {j_path}; falling back to simulated data.")
+        logger.info(
+            f"Criteo data not found at {tp_path} / {j_path}; falling back to simulated data."
+        )
         tp_path = SIMULATED_TOUCHPOINTS_PATH
         j_path = SIMULATED_JOURNEYS_PATH
 
@@ -219,7 +220,7 @@ def shapley_attribution(journeys: pl.DataFrame) -> dict[str, float]:
     negative_channels = [(k, val) for k, val in shapley.items() if val < 0]
     if negative_channels:
         names = ", ".join(f"{k} ({val:.2f})" for k, val in negative_channels)
-        print(
+        logger.info(
             f"  Warning: {len(negative_channels)} channel(s) had negative Shapley values "
             f"and were clipped to 0: {names}"
         )
@@ -314,7 +315,7 @@ def run_all_models(
     """Run all attribution models and return comparison."""
     tp, journeys = load_data(touchpoints_path, journeys_path)
 
-    print("Running attribution models...")
+    logger.info("Running attribution models...")
 
     results = {
         "first_touch": first_touch_attribution(tp, journeys),
@@ -336,25 +337,26 @@ def run_all_models(
     out = MODEL_OUTPUT_DIR / "attribution_comparison.json"
     with open(out, "w") as f:
         json.dump(results, f, indent=2)
-    print(f"  Saved comparison to {out}")
+    logger.info(f"  Saved comparison to {out}")
 
     # Print summary
-    print("\nAttribution model comparison (% of total conversions):")
+    logger.info("\nAttribution model comparison (% of total conversions):")
     all_channels = set()
     for v in results.values():
         all_channels.update(v.keys())
 
     header = f"{'Channel':<20}" + "".join(f"{m:<12}" for m in results)
-    print(header)
-    print("-" * len(header))
+    logger.info(header)
+    logger.info("-" * len(header))
     for ch in sorted(all_channels):
         row = f"{ch:<20}" + "".join(f"{results[m].get(ch, 0):>10.1f}%  " for m in results)
-        print(row)
+        logger.info(row)
 
     return results
 
 
 if __name__ == "__main__":
+    setup_logging()
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=str, default=None)
     parser.add_argument("--touchpoints", type=str, default=None)

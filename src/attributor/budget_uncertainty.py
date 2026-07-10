@@ -48,11 +48,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
-repo_root = Path(__file__).parents[1].resolve()
-if str(repo_root) not in sys.path:
-    sys.path.insert(0, str(repo_root))
-
-from config import (  # noqa: E402
+from attributor.config import (  # noqa: E402
     BLOCK_SIZE_DAYS,
     BOOTSTRAP_CI_LEVEL,
     BOOTSTRAP_RANDOM_SEED,
@@ -63,16 +59,20 @@ from config import (  # noqa: E402
     REPORTS_DIR,
     SPEND_CHANNELS,
 )
-from scripts.budget_optimizer import (  # noqa: E402
+from attributor.logging_setup import get_logger, setup_logging
+
+from attributor.budget_optimizer import (  # noqa: E402
     extract_params,
     load_mmm_results,
     optimize_budget,
 )
-from scripts.mmm_model import (  # noqa: E402
+from attributor.mmm_model import (  # noqa: E402
     chronological_split,
     fit_ridge,
     prepare_features,
 )
+
+logger = get_logger(__name__)
 
 # 朴素 case-resample 的对比块数（仅用于 block vs naive 宽度对比，保证可比）
 _NAIVE_LABEL = "naive_case_resample"
@@ -246,7 +246,7 @@ def run_bootstrap(
         lift_samples.append(lift)
 
         if verbose and (i + 1) % 25 == 0:
-            print(f"    [{label}] bootstrap {i + 1}/{n_bootstrap} 完成（成功 {n_ok}）")
+            logger.info(f"    [{label}] bootstrap {i + 1}/{n_bootstrap} 完成（成功 {n_ok}）")
 
     return {
         "optimal_spend": {c: np.array(v, dtype=float) for c, v in spend_samples.items()},
@@ -321,7 +321,7 @@ def plot_forest(
     """
     channels = [c for c in point_estimate if c in block_summary["channels"]]
     if not channels:
-        print("  无可绘制的渠道，跳过森林图。")
+        logger.info("  无可绘制的渠道，跳过森林图。")
         return
 
     # 短标签，便于在 y 轴显示
@@ -416,7 +416,7 @@ def plot_forest(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_path, dpi=150)
-    print(f"  森林图已保存到 {output_path}")
+    logger.info(f"  森林图已保存到 {output_path}")
     plt.close(fig)
 
 
@@ -451,24 +451,26 @@ def compute_current_spend(df: pl.DataFrame) -> dict[str, float]:
 
 def run(n_bootstrap: int = N_BOOTSTRAP, block_size: int = BLOCK_SIZE_DAYS) -> dict:
     """完整不确定性管线：加载 brand → bootstrap → 写 json + 森林图。"""
-    print("=" * 70)
-    print("预算优化不确定性量化 — block bootstrap 置信区间")
-    print("=" * 70)
+    logger.info("=" * 70)
+    logger.info("预算优化不确定性量化 — block bootstrap 置信区间")
+    logger.info("=" * 70)
 
     mmm = load_mmm_results()
     brand_id = mmm["brand_id"]
-    print(f"  目标 brand（与 mmm_results.json 一致）: {brand_id}")
+    logger.info(f"  目标 brand（与 mmm_results.json 一致）: {brand_id}")
 
     df = load_brand_frame(brand_id)
-    print(f"  加载 brand 数据：{df.height} 行，{df['date_day'].min()} → {df['date_day'].max()}")
+    logger.info(
+        f"  加载 brand 数据：{df.height} 行，{df['date_day'].min()} → {df['date_day'].max()}"
+    )
 
     X, y, feature_names, _dates = prepare_features(df)
     current_spend = compute_current_spend(df)
     total_budget = float(sum(current_spend.values()))
 
     active = {c: v for c, v in current_spend.items() if v > 0}
-    print(f"  活跃渠道数: {len(active)}，总预算（日均）: ${total_budget:,.0f}")
-    print(f"  block_size={block_size} 天，N_BOOTSTRAP={n_bootstrap}")
+    logger.info(f"  活跃渠道数: {len(active)}，总预算（日均）: ${total_budget:,.0f}")
+    logger.info(f"  block_size={block_size} 天，N_BOOTSTRAP={n_bootstrap}")
 
     # 确定性单点估计（复用主优化器，作为区间内的参考点）
     point_elasticities, point_intercept = extract_params(mmm)
@@ -478,7 +480,7 @@ def run(n_bootstrap: int = N_BOOTSTRAP, block_size: int = BLOCK_SIZE_DAYS) -> di
     point_estimate = dict(point_opt["optimal_spend"])
 
     # ---- block bootstrap（主结果）----
-    print("\n  [1/2] Block bootstrap（保留自相关）运行中...")
+    logger.info("\n  [1/2] Block bootstrap（保留自相关）运行中...")
     block_samples = run_bootstrap(
         X,
         y,
@@ -494,7 +496,7 @@ def run(n_bootstrap: int = N_BOOTSTRAP, block_size: int = BLOCK_SIZE_DAYS) -> di
     block_summary = summarize_ci(block_samples)
 
     # ---- naive case-resample（对比，证明 block 必要）----
-    print("\n  [2/2] Naive case-resample（破坏自相关，对比用）运行中...")
+    logger.info("\n  [2/2] Naive case-resample（破坏自相关，对比用）运行中...")
     naive_samples = run_bootstrap(
         X,
         y,
@@ -534,7 +536,7 @@ def run(n_bootstrap: int = N_BOOTSTRAP, block_size: int = BLOCK_SIZE_DAYS) -> di
     out_json = REPORTS_DIR / "budget_uncertainty.json"
     with open(out_json, "w") as f:
         json.dump(report, f, indent=2)
-    print(f"\n  报告已写入 {out_json}")
+    logger.info(f"\n  报告已写入 {out_json}")
 
     plot_forest(
         block_summary,
@@ -576,30 +578,30 @@ def _width_comparison(block: dict, naive: dict) -> dict:
 
 def _print_summary(report: dict) -> None:
     """控制台打印关键数字：哪些渠道 CI 窄/宽、block vs naive 对比。"""
-    print("\n" + "=" * 70)
-    print("关键结果")
-    print("=" * 70)
+    logger.info("\n" + "=" * 70)
+    logger.info("关键结果")
+    logger.info("=" * 70)
     blk = report["block_bootstrap_ci"]["channels"]
     cmp = report["block_vs_naive_width"]["channels"]
 
     # 按 CI 宽度排序，最窄/最宽各列出来
     ordered = sorted(blk.items(), key=lambda kv: kv[1]["ci_width"])
-    print("\n  各渠道最优 spend 的 95% CI（block bootstrap）：")
+    logger.info("\n  各渠道最优 spend 的 95% CI（block bootstrap）：")
     for ch, d in ordered:
         ratio = cmp.get(ch, {}).get("block_over_naive_ratio")
         ratio_str = f"，block/naive={ratio:.2f}x" if ratio else ""
-        print(
+        logger.info(
             f"    {ch:32s} 中位 ${d['median']:>10,.0f}  "
             f"CI [${d['ci_low']:>10,.0f}, ${d['ci_high']:>10,.0f}]"
             f"  宽 ${d['ci_width']:>10,.0f}{ratio_str}"
         )
 
-    print(f"\n  最稳定（CI 最窄）：{ordered[0][0]}  宽 ${ordered[0][1]['ci_width']:,.0f}")
-    print(f"  最不确定（CI 最宽）：{ordered[-1][0]}  宽 ${ordered[-1][1]['ci_width']:,.0f}")
+    logger.info(f"\n  最稳定（CI 最窄）：{ordered[0][0]}  宽 ${ordered[0][1]['ci_width']:,.0f}")
+    logger.info(f"  最不确定（CI 最宽）：{ordered[-1][0]}  宽 ${ordered[-1][1]['ci_width']:,.0f}")
 
     bl_lift = report["block_bootstrap_ci"].get("revenue_lift_pct", {})
     if bl_lift:
-        print(
+        logger.info(
             f"\n  Revenue 提升点估计: {report['point_revenue']['improvement_pct']:.2f}%  "
             f"| block 95% CI: [{bl_lift['ci_low']:.2f}%, {bl_lift['ci_high']:.2f}%]"
         )
@@ -607,11 +609,11 @@ def _print_summary(report: dict) -> None:
     # block vs naive 平均宽度比
     ratios = [v["block_over_naive_ratio"] for v in cmp.values() if v["block_over_naive_ratio"]]
     if ratios:
-        print(
+        logger.info(
             f"\n  Block bootstrap CI 平均是 naive 的 "
             f"{np.mean(ratios):.2f}x 宽（保留自相关 → 更诚实的不确定性）"
         )
-    print("=" * 70)
+    logger.info("=" * 70)
 
 
 def main() -> None:
@@ -635,4 +637,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    setup_logging()
     main()

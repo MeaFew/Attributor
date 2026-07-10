@@ -34,12 +34,12 @@ def main():
     here = Path(__file__).resolve().parent
 
     # Materialize output dirs explicitly (config import is now side-effect-free).
-    from config import ensure_dirs
+    from attributor.config import ensure_dirs
 
     ensure_dirs()
 
     # Build step commands as argv lists; append --output if provided.
-    preprocess_cmd = ["python", "scripts/preprocess.py"]
+    preprocess_cmd = ["python", "-m", "attributor.preprocess"]
     if args.output:
         preprocess_cmd += ["--output", args.output]
 
@@ -51,21 +51,21 @@ def main():
     # falls back from Criteo to simulated parquet, so the downstream step is robust
     # either way.
     def _has_criteo():
-        from config import CRITEO_RAW_PATH  # local import keeps top level cheap
+        from attributor.config import CRITEO_RAW_PATH  # local import keeps top level cheap
 
         return CRITEO_RAW_PATH.exists()
 
     if _has_criteo():
-        attribution_prep = ("Criteo preprocessing", ["python", "scripts/preprocess_criteo.py"])
+        attribution_prep = ("Criteo preprocessing", ["python", "-m", "attributor.preprocess_criteo"])
     else:
-        attribution_prep = ("Touchpoint Generation", ["python", "scripts/generate_touchpoints.py"])
+        attribution_prep = ("Touchpoint Generation", ["python", "-m", "attributor.generate_touchpoints"])
 
     steps = [
         ("Preprocessing", preprocess_cmd),
-        ("MMM Modeling", ["python", "scripts/mmm_model.py"]),
+        ("MMM Modeling", ["python", "-m", "attributor.mmm_model"]),
         attribution_prep,
-        ("Multi-touch Attribution", ["python", "scripts/multi_touch_attribution.py"]),
-        ("Budget Optimization", ["python", "scripts/budget_optimizer.py"]),
+        ("Multi-touch Attribution", ["python", "-m", "attributor.multi_touch_attribution"]),
+        ("Budget Optimization", ["python", "-m", "attributor.budget_optimizer"]),
     ]
 
     print("Marketing Attribution & Budget Optimization - Full Pipeline")

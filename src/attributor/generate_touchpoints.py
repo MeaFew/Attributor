@@ -7,15 +7,14 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
-repo_root = Path(__file__).parents[1].resolve()
-if str(repo_root) not in sys.path:
-    sys.path.insert(0, str(repo_root))
-
-from config import (
+from attributor.config import (
     SIMULATED_JOURNEYS_PATH,
     SIMULATED_TOUCHPOINTS_PATH,
     SIMULATION_PARAMS,
 )
+from attributor.logging_setup import get_logger, setup_logging
+
+logger = get_logger(__name__)
 
 
 def generate_touchpoints(
@@ -100,7 +99,7 @@ def main(output_touchpoints: Path | None = None, output_journeys: Path | None = 
     """Run touchpoint generation."""
     # Read parameters from shared config
     params = SIMULATION_PARAMS
-    print("Generating simulated user touchpoint data...")
+    logger.info("Generating simulated user touchpoint data...")
     touchpoints, journeys = generate_touchpoints(
         n_users=params["n_users"],
         max_touchpoints=params["max_touchpoints_per_user"],
@@ -117,22 +116,23 @@ def main(output_touchpoints: Path | None = None, output_journeys: Path | None = 
     touchpoints.write_parquet(tp_out)
     journeys.write_parquet(j_out)
 
-    print(f"  Touchpoints: {touchpoints.height:,} rows -> {tp_out}")
-    print(
+    logger.info(f"  Touchpoints: {touchpoints.height:,} rows -> {tp_out}")
+    logger.info(
         f"  Journeys: {journeys.height:,} rows ({journeys['converted'].sum():,} converters) -> {j_out}"
     )
 
     # Summary stats
-    print("\nChannel distribution in touchpoints:")
-    print(
+    logger.info("\nChannel distribution in touchpoints:")
+    logger.info(
         touchpoints.group_by("channel").agg(pl.len().alias("count")).sort("count", descending=True)
     )
 
-    print("\nPath length distribution:")
-    print(journeys.group_by("path_length").agg(pl.len().alias("count")).sort("path_length"))
+    logger.info("\nPath length distribution:")
+    logger.info(journeys.group_by("path_length").agg(pl.len().alias("count")).sort("path_length"))
 
 
 if __name__ == "__main__":
+    setup_logging()
     parser = argparse.ArgumentParser()
     parser.add_argument("--touchpoints", type=str, default=None)
     parser.add_argument("--journeys", type=str, default=None)

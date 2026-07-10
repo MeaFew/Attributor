@@ -32,11 +32,7 @@ import sys
 
 import matplotlib.pyplot as plt
 
-repo_root = Path(__file__).parents[1].resolve()
-if str(repo_root) not in sys.path:
-    sys.path.insert(0, str(repo_root))
-
-from config import (
+from attributor.config import (
     CLEANED_PARQUET_PATH,
     HOLDOUT_FRACTION,
     IMAGES_DIR,
@@ -44,6 +40,9 @@ from config import (
     SPEND_CHANNELS,
     TARGET_NEW_REVENUE,
 )
+from attributor.logging_setup import get_logger, setup_logging
+
+logger = get_logger(__name__)
 
 # HOLDOUT_FRACTION now comes from config (single source of truth). MMM is a
 # daily time series, so the split is by date — never a random shuffle.
@@ -318,7 +317,7 @@ def plot_model_comparison(
 
     out = output_dir / "mmm_coefficient_comparison.png"
     fig.savefig(out, dpi=150)
-    print(f"  Saved coefficient comparison to {out}")
+    logger.info(f"  Saved coefficient comparison to {out}")
     plt.close(fig)
 
 
@@ -342,7 +341,7 @@ def plot_residuals(ols_result: dict, output_dir: Path) -> None:
     fig.tight_layout()
     out = output_dir / "mmm_residual_diagnostics.png"
     fig.savefig(out, dpi=150)
-    print(f"  Saved residual diagnostics to {out}")
+    logger.info(f"  Saved residual diagnostics to {out}")
     plt.close(fig)
 
 
@@ -356,14 +355,14 @@ def run_mmm(df: pl.DataFrame, brand_id: str | None = None, territory: str | None
     if df.height == 0:
         raise ValueError("No data after filtering")
 
-    print(f"Running MMM on {df.height:,} rows (brand={brand_id}, territory={territory})")
+    logger.info(f"Running MMM on {df.height:,} rows (brand={brand_id}, territory={territory})")
 
     X, y, feature_names, dates = prepare_features(df)
 
     # Chronological split (MMM is a daily time series — never shuffle).
     X_train, X_test, y_train, y_test = chronological_split(X, y, dates)
     split_date = str(dates[len(y_train)])
-    print(
+    logger.info(
         f"  Chronological split: train={len(y_train)} rows, "
         f"holdout={len(y_test)} rows (holdout from {split_date})"
     )
@@ -404,7 +403,7 @@ def run_mmm(df: pl.DataFrame, brand_id: str | None = None, territory: str | None
     json_path = MODEL_OUTPUT_DIR / "mmm_results.json"
     with open(json_path, "w") as f:
         json.dump(summary, f, indent=2)
-    print(f"  Saved results to {json_path}")
+    logger.info(f"  Saved results to {json_path}")
 
     # Plots
     IMAGES_DIR.mkdir(parents=True, exist_ok=True)
@@ -432,7 +431,7 @@ def select_best_brand(df: pl.DataFrame) -> tuple[str, str]:
 
 def run_cross_brand_elasticity(df: pl.DataFrame) -> pl.DataFrame:
     """Run MMM per brand-territory and aggregate elasticities."""
-    print("Running cross-brand MMM elasticity analysis...")
+    logger.info("Running cross-brand MMM elasticity analysis...")
     groups = df.group_by(["organisation_id", "territory_name"]).agg(pl.count())
     results = []
 
@@ -458,18 +457,19 @@ def run_cross_brand_elasticity(df: pl.DataFrame) -> pl.DataFrame:
                         }
                     )
         except (ValueError, pl.exceptions.PolarsError) as e:
-            print(f"  Skip {brand}/{territory}: {e}")
+            logger.info(f"  Skip {brand}/{territory}: {e}")
             continue
 
     result_df = pl.DataFrame(results)
     out = MODEL_OUTPUT_DIR / "cross_brand_elasticities.parquet"
     out.parent.mkdir(parents=True, exist_ok=True)
     result_df.write_parquet(out)
-    print(f"  Saved {len(results)} elasticity records to {out}")
+    logger.info(f"  Saved {len(results)} elasticity records to {out}")
     return result_df
 
 
 if __name__ == "__main__":
+    setup_logging()
     parser = argparse.ArgumentParser(description="Run Marketing Mix Modeling")
     parser.add_argument("--brand", type=str, default=None, help="Brand ID")
     parser.add_argument("--territory", type=str, default=None, help="Territory name")
@@ -483,5 +483,5 @@ if __name__ == "__main__":
     else:
         if not args.brand or not args.territory:
             args.brand, args.territory = select_best_brand(df)
-            print(f"Auto-selected brand={args.brand}, territory={args.territory}")
+            logger.info(f"Auto-selected brand={args.brand}, territory={args.territory}")
         run_mmm(df, brand_id=args.brand, territory=args.territory)

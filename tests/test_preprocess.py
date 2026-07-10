@@ -11,11 +11,7 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-repo_root = Path(__file__).parents[1].resolve()
-if str(repo_root) not in sys.path:
-    sys.path.insert(0, str(repo_root))
-
-from config import CLEANED_PARQUET_PATH
+from attributor.config import CLEANED_PARQUET_PATH
 
 
 def test_cleaned_data_exists():
