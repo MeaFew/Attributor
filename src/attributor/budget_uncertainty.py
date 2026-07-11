@@ -48,6 +48,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
+from attributor.budget_optimizer import (  # noqa: E402
+    extract_params,
+    load_mmm_results,
+    optimize_budget,
+)
 from attributor.config import (  # noqa: E402
     BLOCK_SIZE_DAYS,
     BOOTSTRAP_CI_LEVEL,
@@ -60,12 +65,6 @@ from attributor.config import (  # noqa: E402
     SPEND_CHANNELS,
 )
 from attributor.logging_setup import get_logger, setup_logging
-
-from attributor.budget_optimizer import (  # noqa: E402
-    extract_params,
-    load_mmm_results,
-    optimize_budget,
-)
 from attributor.mmm_model import (  # noqa: E402
     chronological_split,
     fit_ridge,
