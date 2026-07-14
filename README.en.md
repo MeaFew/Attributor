@@ -16,6 +16,21 @@
 
 ---
 
+## Headline
+
+> **The optimizer's 0% uplift is an honest result, not a failure.** A saturating response model finds the current allocation near a local optimum (point-estimated revenue uplift ≈ **0.0%**), while block bootstrap reveals the real decision risk: its 95% intervals are **8.9× wider** than naive row-wise resampling. The project answers both “how much should we spend?” and “how trustworthy is that number?”
+
+| Evidence | Result |
+|----------|--------|
+| Ridge MMM holdout R² | **0.42** |
+| Revenue-uplift 95% CI | **[0.00%, 0.08%]** |
+| Block / naive interval-width ratio | **8.9×** |
+| Bootstrap protocol | 913 daily rows · 7-day blocks · N=200 |
+
+<div align="center">
+  <img src="reports/images/uncertainty_summary.svg" alt="Block versus naive bootstrap budget confidence intervals" width="900">
+</div>
+
 ## Overview
 
 This system is built on the figshare "Conjura Multi-Region MMM Dataset" (covering ~100 e-commerce brands, 19 territories, 132,759 daily records from 2019–2024) and delivers a complete analytical pipeline from **macro Marketing Mix Modeling (MMM)** to **micro user journey attribution** to **budget-constrained optimization**.
@@ -59,17 +74,26 @@ flowchart LR
 git clone https://github.com/MeaFew/attributor.git
 cd attributor
 
-# 1. Download MMM dataset (GitHub Releases, ~31MB)
+# 1. Create and activate a Python 3.11 virtual environment
+python -m venv .venv
+# Linux / macOS: source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+
+# 2. Install locked dependencies, the package, and development tools
+make setup
+# Windows without GNU Make: python -m pip install -r requirements.lock
+#                           python -m pip install -e ".[dev]"
+
+# 3. Download MMM dataset (GitHub Releases, ~31MB)
 bash download_data.sh
 
-# 2. (Optional but recommended) Download real attribution dataset
+# 4. (Optional but recommended) Download real attribution dataset
 #    Criteo Attribution Modeling for Bidding Dataset (~623MB)
 #    Place at data/raw/criteo_attribution_dataset.tsv.gz
 #    Official: https://ailab.criteo.com/criteo-attribution-modeling-bidding-dataset/
 
-# Install and run
-make setup        # Create venv + install dependencies
 make all          # Run full pipeline: clean -> MMM -> attribution -> optimize
+python -m attributor.budget_uncertainty  # reproduce the block-bootstrap intervals above
 make dashboard    # Launch Streamlit interactive dashboard
 make verify       # Local quality gates (lint + format + test + audit)
 ```
@@ -78,7 +102,7 @@ make verify       # Local quality gates (lint + format + test + audit)
 
 ## Core Modules
 
-### 1. Data Preprocessing (`scripts/preprocess.py`)
+### 1. Data Preprocessing (`src/attributor/preprocess.py`)
 
 ```
 Input:  132,759 rows x 50 cols (heavy nulls + thousand-separator commas)
@@ -90,7 +114,7 @@ Key operations:
   - Temporal feature extraction (year/month/day_of_week/is_weekend)
 ```
 
-### 2. Marketing Mix Modeling (`scripts/mmm_model.py`)
+### 2. Marketing Mix Modeling (`src/attributor/mmm_model.py`)
 
 **Leakage & regularization notes (important):**
 - **Chronological split, not random**: MMM is a daily time series; an earlier version fit on all rows and reported R², which is resubstitution (in-sample). We now hold out the last 20% by date and report both in-sample R² and holdout R²/MAE so the generalization gap is visible.
@@ -104,9 +128,9 @@ Key operations:
 
 > Ridge, under the CV-selected large alpha, visibly shrinks coefficients (in-sample R² drops to 0.342 while holdout R² 0.419 stays close to OLS's 0.440) — strong regularization trades a little bias for much more stable coefficients, which matters for out-of-sample budget extrapolation. Lasso selects alpha=10 but zeroes no coefficient (every spend variable is informative). R² ~ 0.54 (in-sample) / 0.44 (holdout) reflects the natural ceiling of aggregate MMM without price/promotion/competitor data; brand-level models can reach 0.70–0.85.
 
-### 3. Multi-Touch Attribution (`scripts/multi_touch_attribution.py`)
+### 3. Multi-Touch Attribution (`src/attributor/multi_touch_attribution.py`)
 
-Uses the real **Criteo Attribution Modeling for Bidding Dataset** (30 days of live traffic, 16.5M impressions, 6.1M users, 45K conversions). Impression-level data is aggregated by `uid` into user journeys. The Top 10 campaigns are kept as individual channels; the remaining 665 campaigns are grouped into an `other` bucket. Five attribution models plus removal effect analysis are compared:
+Uses the real **Criteo Attribution Modeling for Bidding Dataset** (30 days of live traffic, approximately 16.5M impressions and 45K conversions). Impression-level data is aggregated by `uid` into user journeys. The Top 10 campaigns are kept as individual channels; the remaining 665 campaigns are grouped into an `other` bucket. Five attribution models plus removal effect analysis are compared:
 
 | Channel | First-Touch | Last-Touch | Linear | Time-Decay | **Shapley** | **Removal Eff.** |
 |---------|:-----------:|:----------:|:------:|:----------:|:-----------:|:----------:|
@@ -131,7 +155,7 @@ Uses the real **Criteo Attribution Modeling for Bidding Dataset** (30 days of li
 - **Removal Effect** is insensitive to the `other` bucket (removing `other` leaves almost no sample, driving its share to 0%), but it is highly sensitive to individual top campaigns — campaign_9100693 and campaign_10341182 show removal effects of 19.4% and 16.9%, respectively, indicating they have the largest marginal impact on overall conversion rate.
 - **Methodological insight**: On real data, differences between attribution models are smaller than on simulated data (because the `other` bucket dominates), but Shapley and Removal Effect still effectively identify the highest-impact campaigns.
 
-### 4. Budget Optimization (`scripts/budget_optimizer.py`)
+### 4. Budget Optimization (`src/attributor/budget_optimizer.py`)
 
 Uses Ridge MMM coefficients as the asymptotic ceiling of a **saturating channel response function**, with SLSQP solving for optimal allocation under a fixed total budget:
 
@@ -153,19 +177,24 @@ where `coef_i` is the Ridge elasticity, `gamma=1.5` the Hill slope, and `tau_i` 
 
 > **Honest business insight**: an earlier version used a **linear** response function, under which the budget-constrained optimum degenerates to a trivial greedy corner solution — push all budget to the highest-elasticity channel and extrapolate far outside the training spend range, yielding a fictitious +1.8% uplift (a linear model implies unbounded returns to scale and cannot support budget guidance). With a saturating response, at this brand's current operating point (each channel already near its own `tau`) reallocation yields essentially no extra revenue (≈0%) and incremental budget's marginal return is naturally capped — which is the honest conclusion a budget optimizer should deliver: **the current allocation is already near a local optimum**. Unlocking real optimization headroom requires stronger features (price, promotion, competitor spend) or finer modeling (sub-channel / daypart).
 
+### 5. Budget Uncertainty (`src/attributor/budget_uncertainty.py`)
+
+The point estimate is paired with 95% confidence intervals using a **7-day block bootstrap**. Unlike naive row-wise resampling, block resampling preserves within-week temporal dependence. On the measured run (N=200), the resulting intervals are 8.9× wider on average and the revenue-uplift interval is [0.00%, 0.08%], making coefficient instability and decision risk explicit.
+
 ---
 
 ## Project Structure
 
 ```
 attributor/
-├── scripts/
+├── src/attributor/
 │   ├── preprocess.py              # Polars ETL: nulls, thousand-separator handling, adstock, derived metrics
 │   ├── mmm_model.py               # OLS + Ridge + Lasso, VIF / Durbin-Watson / residual diagnostics
 │   ├── generate_touchpoints.py    # Simulate 50K user journeys based on real channel structure (fallback)
 │   ├── preprocess_criteo.py       # Aggregate Criteo impression data into user journeys
 │   ├── multi_touch_attribution.py # 6 attribution models: First / Last / Linear / Time-decay / Shapley / Removal Effect
-│   └── budget_optimizer.py        # scipy.optimize SLSQP budget-constrained optimization
+│   ├── budget_optimizer.py        # scipy.optimize SLSQP budget-constrained optimization
+│   └── budget_uncertainty.py      # block-bootstrap 95% confidence intervals
 ├── notebooks/
 │   └── 01_eda.ipynb               # Exploratory data analysis
 ├── dashboard/
@@ -180,9 +209,8 @@ attributor/
 │   └── processed/                 # Cleaned Parquet
 ├── reports/
 │   └── images/                    # Generated charts
-├── config.py                      # Centralized config: paths, channel lists, hyperparameters
 ├── Makefile                       # Workflow orchestration
-├── requirements.txt
+├── requirements.lock              # Reproducible dependency pins
 └── .github/workflows/ci.yml       # GitHub Actions: lint + test + docker-build
 ```
 

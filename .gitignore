@@ -80,6 +80,10 @@ images/*.jpg
 !models/.gitkeep
 !reports/.gitkeep
 !images/.gitkeep
+!reports/images/
+reports/images/*
+!reports/images/budget_ci.png
+!reports/images/uncertainty_summary.svg
 
 # Logs
 *.log

@@ -21,6 +21,10 @@
 
 > **预算优化的「0% 提升」不是无解，而是诚实结论**。饱和响应模型表明当前分配已近局部最优（revenue 提升点估计 ≈ **0.0%**）；但 block bootstrap 揭示真正的决策风险——95% 置信区间是朴素逐行重抽样的 **8.9 倍宽**，单点估计会让决策者基于虚假精确感砍预算。本项目不止输出「该花多少」，更回答「这个数字有多可信」。
 
+<p align="center">
+  <img src="reports/images/uncertainty_summary.svg" width="900" alt="Attributor block bootstrap 与朴素 bootstrap 不确定性对比">
+</p>
+
 <div align="center">
 
 **每渠道最优预算的 95% 置信区间（单品牌 913 行 · block_size=7 天 · N=200）**
@@ -54,7 +58,7 @@
 <details>
 <summary><b>🔧 核心模块详解（5 个模块的完整方法、结果表与诚实解读）</b></summary>
 
-### 1. 数据预处理（`scripts/preprocess.py`）
+### 1. 数据预处理（`src/attributor/preprocess.py`）
 
 ```
 输入: 132,759 rows x 50 cols（含大量空值与千分位逗号分隔符）
@@ -66,7 +70,7 @@
   - 时间特征提取（year/month/day_of_week/is_weekend）
 ```
 
-### 2. 营销组合建模（`scripts/mmm_model.py`）
+### 2. 营销组合建模（`src/attributor/mmm_model.py`）
 
 #### 防泄漏与正则化说明（重要）
 
@@ -98,9 +102,9 @@
 
 > Ridge 在 CV 选出的大 alpha 下显著收缩系数（in-sample R² 降至 0.342，但 holdout R² 0.419 与 OLS 的 0.440 接近），说明强正则化牺牲少量偏差换取更稳定的系数——这对预算优化外推尤其重要。Lasso 选出 alpha=10 但未将任何系数压到 0（spend 变量均有解释力）。Durbin-Watson 等诊断量由模型自动输出，参见 `data/processed/models/mmm_results.json`。
 
-### 3. 多触点归因（`scripts/multi_touch_attribution.py`）
+### 3. 多触点归因（`src/attributor/multi_touch_attribution.py`）
 
-使用真实 **Criteo Attribution Modeling for Bidding Dataset**（30 天实时流量，1,650 万条展示，61 万用户，4.5 万次转化）。将 impression 级数据按 `uid` 聚合成用户旅程，取 Top 10 campaigns 作为独立渠道，其余 665 个 campaign 归入 `other` 桶，对比 5 种归因模型 + 移除效应分析：
+使用真实 **Criteo Attribution Modeling for Bidding Dataset**（30 天实时流量，约 1,650 万条展示、4.5 万次转化）。将 impression 级数据按 `uid` 聚合成用户旅程，取 Top 10 campaigns 作为独立渠道，其余 665 个 campaign 归入 `other` 桶，对比 5 种归因模型 + 移除效应分析：
 
 | 渠道 | First-Touch | Last-Touch | Linear | Time-Decay | **Shapley** | **Removal Eff.** |
 |------|:-----------:|:----------:|:------:|:----------:|:-----------:|:----------:|
@@ -125,7 +129,7 @@
 - **移除效应分析（Removal Effect）** 对 `other` 桶不敏感（移除 `other` 后剩余样本极少，导致其份额被压到 0%），但对头部单一 campaign 非常敏感——campaign_9100693 和 campaign_10341182 的移除效应分别达到 19.4% 和 16.9%，说明这两个 campaign 对整体转化率的边际影响最大。
 - **方法启示**：真实数据下归因模型之间的差异比模拟数据更小（因为 `other` 桶占据主导），但 Shapley 与 Removal Effect 仍能有效识别头部高影响 campaign。
 
-### 4. 预算优化（`scripts/budget_optimizer.py`）
+### 4. 预算优化（`src/attributor/budget_optimizer.py`）
 
 以 Ridge MMM 的系数作为渠道**饱和响应函数**的渐近上限，在总预算约束下用 SLSQP 求解最优分配：
 
@@ -147,7 +151,7 @@ revenue_i = coef_i · spend_i^gamma / (spend_i^gamma + tau_i^gamma)
 
 > **诚实的业务启示**：早期版本用**线性**响应函数，在总预算约束下最优解退化为平凡贪心——把预算挪向最高弹性渠道并外推到训练范围之外，得出 +1.8% 的虚高提升（线性模型隐含无限规模回报，本身无法支撑预算建议）。改用饱和响应后，在该品牌的当前运营点（各渠道已接近各自 `tau`）重新分配几乎无额外收益（≈0%），增量预算的边际收益也被饱和函数天然抑制——这正是预算优化应有的、诚实的结论：**当前分配已接近局部最优**。若要释放优化空间，需引入更强的特征（价格、促销、竞品）或在更细粒度（子渠道/时段）上建模。
 
-### 5. 预算优化的不确定性（`scripts/budget_uncertainty.py`）
+### 5. 预算优化的不确定性（`src/attributor/budget_uncertainty.py`）
 
 > 单点估计会害死人。第四节的优化器输出「google_video 应花 \$17,542」这样一个**单点**——CMO 拿它去砍预算时，隐含的假设是「我精确地知道最优分配」。但 Ridge 系数本身有噪声、训练样本只是历史的一小段，单点估计掩盖了真实的决策风险。本节给每个渠道的「最优 spend」与「revenue 提升」配 **95% 置信区间**，把项目从「会优化」升级为「懂决策风险」。
 
@@ -189,16 +193,25 @@ revenue_i = coef_i · spend_i^gamma / (spend_i^gamma + tau_i^gamma)
 git clone https://github.com/MeaFew/attributor.git
 cd attributor
 
-# 1. 下载 MMM 数据集（GitHub Releases，约 31MB）
+# 1. 创建并激活 Python 3.11 虚拟环境
+python -m venv .venv
+# Linux / macOS: source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+
+# 2. 安装锁定依赖、项目包和开发工具
+make setup
+# Windows 无 GNU Make：python -m pip install -r requirements.lock
+#                    python -m pip install -e ".[dev]"
+
+# 3. 下载 MMM 数据集（GitHub Releases，约 31MB）
 bash download_data.sh
 
-# 2.（可选但推荐）下载真实归因数据集 Criteo Attribution Modeling for Bidding Dataset
+# 4.（可选但推荐）下载真实归因数据集 Criteo Attribution Modeling for Bidding Dataset
 #    约 623MB，下载后放到 data/raw/criteo_attribution_dataset.tsv.gz
 #    官方：https://ailab.criteo.com/criteo-attribution-modeling-bidding-dataset/
 
-# 安装依赖并运行
-make setup        # 创建虚拟环境 + 安装依赖
-make all
+make all          # 清洗 → MMM → 归因 → 优化
+python -m attributor.budget_uncertainty  # 复现 README 的 block-bootstrap 区间
 # Windows (无 GNU Make): python run_all.py          # 运行完整管线：清洗 → MMM → 归因 → 优化
 #                                                     归因步骤自动判断：有 Criteo 原始数据则走真实
 #                                                     preprocess_criteo，否则 fallback 到 generate_touchpoints 合成
@@ -247,7 +260,7 @@ flowchart LR
 
 ```
 attributor/
-├── scripts/
+├── src/attributor/
 │   ├── preprocess.py              # Polars ETL：缺失值、千分位处理、adstock、衍生指标
 │   ├── mmm_model.py               # OLS + Ridge + Lasso，VIF / Durbin-Watson / 残差诊断
 │   ├── generate_touchpoints.py    # 基于真实渠道结构模拟 50K 用户旅程（fallback）
@@ -270,9 +283,8 @@ attributor/
 │   └── processed/                 # 清洗后 Parquet
 ├── reports/
 │   └── images/                    # 生成的图表
-├── config.py                      # 集中配置：路径、渠道列表、超参数
 ├── Makefile                       # 工作流编排
-├── requirements.txt
+├── requirements.lock              # 可复现的锁定依赖
 └── .github/workflows/ci.yml       # GitHub Actions：lint + test + docker-build
 ```
 
