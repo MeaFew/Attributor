@@ -9,7 +9,7 @@ from attributor.config import MODEL_OUTPUT_DIR
 
 def test_mmm_results_exist():
     path = MODEL_OUTPUT_DIR / "mmm_results.json"
-    assert path.exists(), "MMM results not found. Run scripts/mmm_model.py first."
+    assert path.exists(), "MMM results not found. Run python -m attributor.mmm_model first."
 
 
 def test_mmm_results_structure():
@@ -24,4 +24,4 @@ def test_mmm_results_structure():
 
 def test_budget_results_exist():
     path = MODEL_OUTPUT_DIR / "budget_optimization.json"
-    assert path.exists(), "Budget results not found. Run scripts/budget_optimizer.py first."
+    assert path.exists(), "Budget results not found. Run python -m attributor.budget_optimizer first."

@@ -45,7 +45,7 @@ if page == "MMM Overview":
     try:
         mmm = load_mmm_results()
     except FileNotFoundError:
-        st.error("MMM results not found. Run `python scripts/mmm_model.py` first.")
+        st.error("MMM results not found. Run `python -m attributor.mmm_model` first.")
         st.stop()
 
     col1, col2, col3 = st.columns(3)
@@ -113,7 +113,7 @@ if page == "Attribution Comparison":
         attr = load_attribution_results()
     except FileNotFoundError:
         st.error(
-            "Attribution results not found. Run `python scripts/multi_touch_attribution.py` first."
+            "Attribution results not found. Run `python -m attributor.multi_touch_attribution` first."
         )
         st.stop()
 
@@ -160,7 +160,7 @@ if page == "Budget Simulator":
     try:
         budget = load_budget_results()
     except FileNotFoundError:
-        st.error("Budget results not found. Run `python scripts/budget_optimizer.py` first.")
+        st.error("Budget results not found. Run `python -m attributor.budget_optimizer` first.")
         st.stop()
 
     scenario = st.selectbox("Select scenario", list(budget.keys()))
@@ -209,21 +209,35 @@ if page == "Budget Simulator":
                 step=50,
             )
 
-    # Simple linear prediction based on Ridge elasticities
+    # Hill saturation prediction consistent with budget_optimizer.optimize_budget
     try:
+        import numpy as np
+
+        from attributor.config import HILL_GAMMA
+
         mmm = load_mmm_results()
         ridge = mmm["models"]["ridge"]["coefficients"]
         ridge_intercept = mmm["models"]["ridge"].get("intercept", 0.0)
-        predicted = (
-            sum(
-                ridge.get(ch.replace("_spend", "_adstock"), {}).get("coef", 0) * adjusted[ch]
-                for ch in channels
-            )
-            + ridge_intercept
+
+        # Build per-channel arrays matching budget_optimizer's Hill model
+        spend_vals = np.array([float(adjusted[ch]) for ch in channels])
+        elasticities = np.array(
+            [ridge.get(ch.replace("_spend", "_adstock"), {}).get("coef", 0) for ch in channels]
         )
+        # tau = current average spend (half-saturation point), same as optimizer
+        tau = np.array([float(result["current_spend"][ch]) for ch in channels])
+        tau = np.where(tau > 0, tau, 1.0)
+        gamma = HILL_GAMMA
+
+        # Hill saturation: coef * x^gamma / (x^gamma + tau^gamma)
+        denom = spend_vals**gamma + tau**gamma
+        denom = np.where(denom <= 0, 1e-9, denom)
+        hill_rev = elasticities * (spend_vals**gamma) / denom
+        predicted = float(np.sum(hill_rev) + ridge_intercept)
+
         current_pred = result["current_revenue"]
         st.metric(
-            "Predicted Revenue",
+            "Predicted Revenue (Hill saturation)",
             f"${predicted:,.0f}",
             delta=f"{(predicted - current_pred) / abs(current_pred) * 100:.1f}%"
             if current_pred != 0

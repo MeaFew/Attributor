@@ -83,44 +83,51 @@ def preprocess_criteo(
     # Sort by user and timestamp to build ordered paths
     df = df.sort(["uid", "timestamp"])
 
-    # Use pandas for reliable group-by string aggregation
-    pdf = df.select(["uid", "timestamp", "channel", "conversion"]).to_pandas()
-
-    journeys_pdf = (
-        pdf.sort_values(["uid", "timestamp"])
-        .groupby("uid", sort=False)
+    # --- Journeys: polars-native group-by aggregation ---
+    journeys_df = (
+        df.group_by("uid", maintain_order=True)
         .agg(
-            path=("channel", lambda x: " > ".join(x)),
-            path_length=("channel", "size"),
-            converted=("conversion", "max"),
+            pl.col("channel").str.concat(" > ").alias("path"),
+            pl.len().alias("path_length"),
+            pl.col("conversion").max().alias("converted"),
         )
-        .reset_index()
+        .with_columns(
+            pl.col("uid").cast(pl.Utf8).alias("user_id"),
+            pl.col("conversion").cast(pl.Float64).alias("conversion_value"),
+        )
+        .select(["user_id", "path", "path_length", "converted", "conversion_value"])
     )
-    journeys_pdf["user_id"] = journeys_pdf["uid"].astype(str)
-    journeys_pdf["conversion_value"] = journeys_pdf["converted"].astype(float)
-    journeys_pdf = journeys_pdf[["user_id", "path", "path_length", "converted", "conversion_value"]]
-    journeys_df = pl.from_pandas(journeys_pdf)
 
-    # Touchpoint-level records
-    pdf["user_id"] = pdf["uid"].astype(str)
-    pdf["touchpoint_number"] = pdf.groupby("uid").cumcount() + 1
-    max_touch_per_user = pdf.groupby("uid")["touchpoint_number"].transform("max")
-    pdf["is_conversion"] = (
-        (pdf["conversion"] == 1) & (pdf["touchpoint_number"] == max_touch_per_user)
-    ).astype(int)
-    pdf["conversion_value"] = pdf["is_conversion"].astype(float)
-
-    touchpoints_pdf = pdf[
-        [
-            "user_id",
-            "timestamp",
-            "channel",
-            "touchpoint_number",
-            "is_conversion",
-            "conversion_value",
-        ]
-    ]
-    touchpoints_df = pl.from_pandas(touchpoints_pdf)
+    # --- Touchpoints: polars-native cumcount and conversion flag ---
+    touchpoints_df = (
+        df.with_columns(
+            pl.col("uid").cast(pl.Utf8).alias("user_id"),
+            pl.col("uid").cum_count().over("uid").alias("touchpoint_number"),
+        )
+        .with_columns(
+            pl.col("touchpoint_number").max().over("uid").alias("_max_tp"),
+        )
+        .with_columns(
+            (
+                (pl.col("conversion") == 1) & (pl.col("touchpoint_number") == pl.col("_max_tp"))
+            )
+            .cast(pl.Int64)
+            .alias("is_conversion"),
+        )
+        .with_columns(
+            pl.col("is_conversion").cast(pl.Float64).alias("conversion_value"),
+        )
+        .select(
+            [
+                "user_id",
+                "timestamp",
+                "channel",
+                "touchpoint_number",
+                "is_conversion",
+                "conversion_value",
+            ]
+        )
+    )
 
     tp_out = output_touchpoints or CRITEO_TOUCHPOINTS_PATH
     j_out = output_journeys or CRITEO_JOURNEYS_PATH

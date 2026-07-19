@@ -65,7 +65,7 @@ def main():
             check(False, "R^2 (Ridge): could not extract from README.md")
     else:
         logger.info(f"  SKIP: mmm_results.json not found at {mmm_path}")
-        logger.info("         Run 'python scripts/mmm_model.py' first.")
+        logger.info("         Run 'python -m attributor.mmm_model' first.")
 
     # --- Check 2: Attribution percentages sum to ~100% per model ---
     attr_path = root / "data" / "processed" / "models" / "attribution_comparison.json"
@@ -84,7 +84,7 @@ def main():
                 failed += 1
     else:
         logger.info(f"  SKIP: attribution_comparison.json not found at {attr_path}")
-        logger.info("         Run 'python scripts/multi_touch_attribution.py' first.")
+        logger.info("         Run 'python -m attributor.multi_touch_attribution' first.")
 
     # --- Check 3: Exactly 6 attribution models in attribution_comparison.json ---
     # The pipeline ships 6 models (First/Last/Linear/TimeDecay/Shapley/Removal).

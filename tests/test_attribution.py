@@ -10,7 +10,7 @@ from attributor.config import MODEL_OUTPUT_DIR
 def test_attribution_results_exist():
     path = MODEL_OUTPUT_DIR / "attribution_comparison.json"
     assert path.exists(), (
-        "Attribution results not found. Run scripts/multi_touch_attribution.py first."
+        "Attribution results not found. Run python -m attributor.multi_touch_attribution first."
     )
 
 

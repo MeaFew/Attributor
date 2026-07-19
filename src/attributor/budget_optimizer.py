@@ -27,11 +27,11 @@ def load_mmm_results() -> dict:
             data = json.load(f)
     except FileNotFoundError:
         logger.info(f"ERROR: MMM results not found at {path}")
-        logger.info("Run 'python scripts/mmm_model.py' first to generate results.")
+        logger.info("Run 'python -m attributor.mmm_model' first to generate results.")
         sys.exit(1)
     except json.JSONDecodeError as e:
         logger.info(f"ERROR: Failed to parse MMM results: {e}")
-        logger.info("The file may be corrupted. Re-run 'python scripts/mmm_model.py'.")
+        logger.info("The file may be corrupted. Re-run 'python -m attributor.mmm_model'.")
         sys.exit(1)
     return data
 

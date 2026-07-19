@@ -18,7 +18,7 @@ def test_cleaned_data_exists():
     """Cleaned data must exist (local; skips in CI where raw data is gitignored)."""
     if not CLEANED_PARQUET_PATH.exists():
         pytest.skip(
-            f"Cleaned data not found at {CLEANED_PARQUET_PATH} (run scripts/preprocess.py first)"
+            f"Cleaned data not found at {CLEANED_PARQUET_PATH} (run python -m attributor.preprocess first)"
         )
     assert CLEANED_PARQUET_PATH.exists()
 

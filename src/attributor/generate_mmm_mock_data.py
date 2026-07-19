@@ -1,7 +1,7 @@
 """Generate a synthetic Conjura-style MMM dataset for local validation.
 
 This is a fallback when the real ~31MB release archive cannot be downloaded.
-The output matches the schema expected by scripts/preprocess.py and the
+The output matches the schema expected by attributor.preprocess and the
 corresponding tests (>=100k rows, 2019-2025 daily dates, spend/clicks/
 impressions/revenue columns, and organic channel columns).
 """

@@ -120,7 +120,7 @@ ATTRIBUTION_HALF_LIFE_DAYS = 7.0
 HILL_GAMMA = 1.5
 
 # ---------------------------------------------------------------------------
-# 预算优化不确定性（block bootstrap）—— scripts/budget_uncertainty.py
+# 预算优化不确定性（block bootstrap）—— attributor.budget_uncertainty
 # ---------------------------------------------------------------------------
 # 单点估计对 CMO 砍预算很危险：没有不确定性量化。这里用 block bootstrap
 # 给每个渠道的「最优 spend」与「revenue lift」配 95% 置信区间。
@@ -129,7 +129,7 @@ HILL_GAMMA = 1.5
 # （本项目 OLS 的 Durbin-Watson=0.90，远小于 2.0）。朴素重抽样会打乱时序，
 # 等于假设样本独立同分布，系统性低估不确定性、CI 偏窄。block bootstrap 按
 # 时间分块、块内保持原始顺序地重抽样，保留块内自相关结构，得到诚实的不
-# 确定性区间。详见 scripts/budget_uncertainty.py。
+# 确定性区间。详见 attributor.budget_uncertainty。
 BLOCK_SIZE_DAYS = 7  # 连续时间块长度（天）；块内保留自相关
 N_BOOTSTRAP = 200  # bootstrap 重抽样次数（每次重拟合 Ridge + 重跑优化）
 BOOTSTRAP_CI_LEVEL = 0.95  # 置信区间水平（百分位法 [2.5%, 97.5%]）

@@ -55,10 +55,4 @@ verify: lint format-check typecheck test audit
 all: preprocess mmm attribution optimize
 
 clean:
-	rm -rf data/processed/*.parquet
-	rm -rf data/processed/*.duckdb
-	rm -rf reports/images/*.png
-	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	find . -type f -name "*.pyc" -delete 2>/dev/null || true
-	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
+	python -c "import shutil, pathlib; [p.unlink() for p in pathlib.Path('data/processed').glob('*.parquet')]; [p.unlink() for p in pathlib.Path('data/processed').glob('*.duckdb')]; [p.unlink() for p in pathlib.Path('reports/images').glob('*.png') if p.exists()]; [shutil.rmtree(d, ignore_errors=True) for d in pathlib.Path('.').rglob('__pycache__')]; [shutil.rmtree(d, ignore_errors=True) for d in pathlib.Path('.').rglob('.pytest_cache')]; [shutil.rmtree(d, ignore_errors=True) for d in pathlib.Path('.').rglob('.ruff_cache')]"
