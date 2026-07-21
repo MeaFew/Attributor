@@ -1,9 +1,6 @@
 """Data preprocessing for the Conjura MMM dataset."""
 
 import argparse
-
-# Allow running from repo root
-import sys
 from pathlib import Path
 
 import polars as pl
@@ -179,7 +176,12 @@ def create_lag_features(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def filter_extreme_outliers(df: pl.DataFrame) -> pl.DataFrame:
-    """Remove rows where revenue is > 5 std from mean within brand-territory."""
+    """Remove rows where revenue is > 5 std from mean within brand-territory.
+
+    Rows whose group std is null (single-row groups) or 0 (constant revenue
+    within the group) are kept explicitly — there is no meaningful sigma to
+    compare them against, so they must not be silently dropped by the filter.
+    """
     df = df.with_columns(
         pl.col(TARGET_NEW_REVENUE)
         .mean()
@@ -192,7 +194,12 @@ def filter_extreme_outliers(df: pl.DataFrame) -> pl.DataFrame:
     )
     before = df.height
     df = df.filter(
-        (pl.col(TARGET_NEW_REVENUE) - pl.col("_mean_revenue")).abs() <= 5 * pl.col("_std_revenue")
+        pl.col("_std_revenue").is_null()
+        | (pl.col("_std_revenue") == 0)
+        | (
+            (pl.col(TARGET_NEW_REVENUE) - pl.col("_mean_revenue")).abs()
+            <= 5 * pl.col("_std_revenue")
+        )
     )
     after = df.height
     if before != after:

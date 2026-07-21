@@ -69,7 +69,7 @@ class TestFitRegularized:
         rng = np.random.default_rng(1)
         X = rng.uniform(0, 100, (80, 3))
         y = X @ np.array([1.0, 2.0, 3.0]) + rng.normal(0, 1, 80)
-        model, scaler = _fit_regularized(X, y, ["a", "b", "c"], "ridge", alpha=1.0)
+        model, scaler = _fit_regularized(X, y, "ridge", alpha=1.0)
         assert hasattr(model, "coef_")
         assert hasattr(scaler, "scale_")
         assert len(model.coef_) == 3
@@ -78,7 +78,7 @@ class TestFitRegularized:
         rng = np.random.default_rng(2)
         X = rng.uniform(0, 100, (80, 2))
         y = 5.0 * X[:, 0] + rng.normal(0, 1, 80)
-        model, scaler = _fit_regularized(X, y, ["x1", "x2"], "lasso", alpha=0.5)
+        model, scaler = _fit_regularized(X, y, "lasso", alpha=0.5)
         assert hasattr(model, "coef_")
         assert len(scaler.mean_) == 2
 

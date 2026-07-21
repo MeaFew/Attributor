@@ -93,6 +93,9 @@ bash download_data.sh
 #    Official: https://ailab.criteo.com/criteo-attribution-modeling-bidding-dataset/
 
 make all          # Run full pipeline: clean -> MMM -> attribution -> optimize
+                  # Attribution step auto-detects: real preprocess_criteo when the
+                  # Criteo raw TSV exists, else falls back to generate_touchpoints
+                  # synthetic data (same behavior as run_all.py)
 python -m attributor.budget_uncertainty  # reproduce the block-bootstrap intervals above
 make dashboard    # Launch Streamlit interactive dashboard
 make verify       # Local quality gates (lint + format + test + audit)

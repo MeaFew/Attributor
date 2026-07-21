@@ -14,7 +14,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install ruff
+      - run: pip install ruff==0.11.0  # align with .pre-commit-config.yaml (ruff-pre-commit v0.11.0)
       - run: ruff check src/ tests/ dashboard/
       - run: ruff format --check src/ tests/ dashboard/
 
@@ -74,7 +74,7 @@ jobs:
           json.dump(data, open('data/processed/models/budget_optimization.json', 'w'), indent=2)
           "
       - name: Run tests with coverage
-        run: pytest tests/ -v --cov=attributor --cov-report=term-missing --cov-fail-under=20
+        run: pytest tests/ -v --cov=attributor --cov-report=term-missing --cov-fail-under=40
 
   typecheck:
     # Gradual typing: mypy reports but does not block CI yet.

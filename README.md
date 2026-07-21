@@ -211,10 +211,10 @@ bash download_data.sh
 #    官方：https://ailab.criteo.com/criteo-attribution-modeling-bidding-dataset/
 
 make all          # 清洗 → MMM → 归因 → 优化
+                  # 归因步骤自动判断：有 Criteo 原始数据则走真实 preprocess_criteo，
+                  # 否则 fallback 到 generate_touchpoints 合成数据（与 run_all.py 行为一致）
 python -m attributor.budget_uncertainty  # 复现 README 的 block-bootstrap 区间
 # Windows (无 GNU Make): python run_all.py          # 运行完整管线：清洗 → MMM → 归因 → 优化
-#                                                     归因步骤自动判断：有 Criteo 原始数据则走真实
-#                                                     preprocess_criteo，否则 fallback 到 generate_touchpoints 合成
 make dashboard    # 启动 Streamlit 交互看板
 make verify       # 本地质量门（lint + format + test + audit）
 ```

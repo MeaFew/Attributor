@@ -241,7 +241,7 @@ notebook-shim==0.2.4
     # via
     #   jupyterlab
     #   nbclassic
-numpy==2.4.6
+numpy==1.26.4
     # via
     #   -r requirements.txt
     #   contourpy

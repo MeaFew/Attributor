@@ -20,7 +20,13 @@ logger = get_logger(__name__)
 
 
 def load_mmm_results() -> dict:
-    """Load MMM results to extract channel elasticities."""
+    """Load MMM results to extract channel elasticities.
+
+    Raises:
+        FileNotFoundError: if ``mmm_results.json`` does not exist — run
+            ``python -m attributor.mmm_model`` first to generate it.
+        json.JSONDecodeError: if the file exists but is corrupted.
+    """
     path = MODEL_OUTPUT_DIR / "mmm_results.json"
     try:
         with open(path) as f:
@@ -28,12 +34,29 @@ def load_mmm_results() -> dict:
     except FileNotFoundError:
         logger.info(f"ERROR: MMM results not found at {path}")
         logger.info("Run 'python -m attributor.mmm_model' first to generate results.")
-        sys.exit(1)
+        raise
     except json.JSONDecodeError as e:
         logger.info(f"ERROR: Failed to parse MMM results: {e}")
         logger.info("The file may be corrupted. Re-run 'python -m attributor.mmm_model'.")
-        sys.exit(1)
+        raise
     return data
+
+
+def hill_response(
+    x: np.ndarray, elasticities: np.ndarray, tau: np.ndarray, gamma: float
+) -> np.ndarray:
+    """Hill saturation response per channel (diminishing returns).
+
+        revenue_i = elasticities_i * x_i^gamma / (x_i^gamma + tau_i^gamma)
+
+    Shared by ``optimize_budget`` and the Streamlit dashboard's budget
+    simulator so the response formula lives in exactly one place.
+    """
+    # x >= 0 enforced by bounds; guard tau=0 channels.
+    safe_tau = np.where(tau > 0, tau, 1.0)
+    denom = x**gamma + safe_tau**gamma
+    denom = np.where(denom <= 0, 1e-9, denom)
+    return elasticities * (x**gamma) / denom
 
 
 def extract_params(mmm_data: dict) -> tuple[dict[str, float], float]:
@@ -93,16 +116,8 @@ def optimize_budget(
     if total_budget is None:
         total_budget = current.sum()
 
-    def hill_response(x: np.ndarray) -> np.ndarray:
-        # Saturation response per channel (diminishing returns).
-        # x >= 0 enforced by bounds; guard tau=0 channels.
-        safe_tau = np.where(tau > 0, tau, 1.0)
-        denom = x**gamma + safe_tau**gamma
-        denom = np.where(denom <= 0, 1e-9, denom)
-        return elastic * (x**gamma) / denom
-
     def total_revenue(x: np.ndarray) -> float:
-        return float(np.sum(hill_response(x)) + intercept)
+        return float(np.sum(hill_response(x, elastic, tau, gamma)) + intercept)
 
     # Objective: maximize total revenue (minimize negative)
     def objective(x):
@@ -116,6 +131,9 @@ def optimize_budget(
     bounds = []
     for i, c in enumerate(channels):
         min_spend = max(0.0, current[i] * min_spend_ratio)
+        # Methodological choice: a channel with current=0 gets an upper bound of
+        # total_budget (not 0) so the optimizer CAN activate an unused channel —
+        # with a 0 upper bound unused channels could never receive any budget.
         max_spend = current[i] * max_spend_ratio if current[i] > 0 else total_budget
         bounds.append((min_spend, max_spend))
 
@@ -203,31 +221,49 @@ def scenario_analysis(
     return scenarios
 
 
+def _compute_current_spend(df: pl.DataFrame) -> dict[str, float]:
+    """Per-channel average daily spend used as the optimizer's baseline.
+
+    A channel whose mean is null (all-null column) or <= 0 (unused for this
+    brand) falls back to the 10th percentile of its non-zero values across ALL
+    brands; a channel with no positive values at all gets 0.0.
+    """
+    current_spend = {}
+    for ch in SPEND_CHANNELS:
+        if ch not in df.columns:
+            current_spend[ch] = 0.0
+            continue
+        # df[ch].mean() is None for an all-null column — check BEFORE float(),
+        # otherwise float(None) raises TypeError and the fallback never runs.
+        mean_val = df[ch].mean()
+        if mean_val is not None and mean_val > 0:
+            current_spend[ch] = float(mean_val)
+        else:
+            # Channel unused for this brand; compute 10th percentile
+            # of non-zero spend across ALL brands as fallback.
+            # Series.filter needs a boolean Series, not an Expr.
+            non_zero = df[ch].filter(df[ch] > 0)
+            if len(non_zero) > 0:
+                fallback = float(non_zero.quantile(0.1))
+                current_spend[ch] = fallback
+            else:
+                current_spend[ch] = 0.0
+    return current_spend
+
+
 def main() -> None:
     """Run budget optimization."""
-    mmm = load_mmm_results()
+    try:
+        mmm = load_mmm_results()
+    except (FileNotFoundError, json.JSONDecodeError):
+        # Reason already logged by load_mmm_results; exit non-zero as before.
+        sys.exit(1)
     elasticities, intercept = extract_params(mmm)
 
     # Use average daily spend from the MMM training data as current spend baseline
     try:
         df = pl.read_parquet(CLEANED_PARQUET_PATH)
-        current_spend = {}
-        for ch in SPEND_CHANNELS:
-            if ch not in df.columns:
-                current_spend[ch] = 0.0
-                continue
-            avg = float(df[ch].mean())
-            if avg is not None and avg > 0:
-                current_spend[ch] = avg
-            else:
-                # Channel unused for this brand; compute 10th percentile
-                # of non-zero spend across ALL brands as fallback
-                non_zero = df[ch].filter(pl.col(ch) > 0)
-                if non_zero.height > 0:
-                    fallback = float(non_zero.quantile(0.1))
-                    current_spend[ch] = fallback
-                else:
-                    current_spend[ch] = 0.0
+        current_spend = _compute_current_spend(df)
     except (OSError, pl.exceptions.PolarsError, pl.exceptions.ArrowError) as e:
         logger.info(f"Warning: Could not load cleaned data: {e}")
         logger.info("Using zero baseline for all channels.")

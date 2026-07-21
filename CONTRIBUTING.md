@@ -9,12 +9,13 @@
 git clone https://github.com/MeaFew/attributor.git
 cd attributor
 
-# 2. 创建虚拟环境 (推荐 Python 3.12)
+# 2. 创建虚拟环境 (推荐 Python 3.11, 与 requirements.lock 的解析目标一致)
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-# 3. 安装依赖
-pip install -r requirements.txt
+# 3. 安装依赖 (锁文件保证可复现) + 项目包与开发工具
+pip install -r requirements.lock
+pip install -e ".[dev]"
 ```
 
 ## 数据准备
@@ -34,7 +35,7 @@ make preprocess
 # 2. MMM 建模 (OLS + Ridge + Lasso)
 make mmm
 
-# 3. 用户旅程模拟 + 多触点归因
+# 3. 用户旅程 (有 Criteo 原始数据则预处理真实数据, 否则生成合成数据) + 多触点归因
 make attribution
 
 # 4. 预算优化
@@ -46,11 +47,11 @@ make dashboard
 
 ## 代码规范
 
-提交前请确保通过以下检查:
+提交前请确保通过以下检查 (忽略规则集中配置在 pyproject.toml, 无需命令行参数):
 
 ```bash
 # Python lint
-ruff check scripts/ dashboard/ --ignore E501,F401,E402
+ruff check src/ tests/ dashboard/
 
 # 单元测试
 pytest tests/ -v
@@ -67,6 +68,6 @@ pytest tests/ -v
 
 ## 扩展建议
 
-- 新增归因模型: 放在 `scripts/` 并从 `multi_touch_attribution.py` 调用
-- 新增分析脚本: 放在 `scripts/` 并按功能命名
+- 新增归因模型: 放在 `src/attributor/multi_touch_attribution.py` 并在 `run_all_models` 中注册
+- 新增分析模块: 放在 `src/attributor/` 并按功能命名 (src-layout)
 - 新增 notebook: 放在 `notebooks/` 并更新 README 索引

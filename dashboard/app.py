@@ -213,6 +213,7 @@ if page == "Budget Simulator":
     try:
         import numpy as np
 
+        from attributor.budget_optimizer import hill_response
         from attributor.config import HILL_GAMMA
 
         mmm = load_mmm_results()
@@ -226,13 +227,10 @@ if page == "Budget Simulator":
         )
         # tau = current average spend (half-saturation point), same as optimizer
         tau = np.array([float(result["current_spend"][ch]) for ch in channels])
-        tau = np.where(tau > 0, tau, 1.0)
-        gamma = HILL_GAMMA
 
-        # Hill saturation: coef * x^gamma / (x^gamma + tau^gamma)
-        denom = spend_vals**gamma + tau**gamma
-        denom = np.where(denom <= 0, 1e-9, denom)
-        hill_rev = elasticities * (spend_vals**gamma) / denom
+        # Hill saturation formula is shared with budget_optimizer.hill_response
+        # (single source of truth — do not re-implement it here).
+        hill_rev = hill_response(spend_vals, elasticities, tau, HILL_GAMMA)
         predicted = float(np.sum(hill_rev) + ridge_intercept)
 
         current_pred = result["current_revenue"]

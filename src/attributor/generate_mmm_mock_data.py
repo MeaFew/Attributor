@@ -7,7 +7,6 @@ impressions/revenue columns, and organic channel columns).
 """
 
 import argparse
-import sys
 from pathlib import Path
 
 import numpy as np

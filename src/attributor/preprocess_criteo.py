@@ -8,7 +8,6 @@ sort by timestamp, and build channel sequences for multi-touch attribution.
 """
 
 import argparse
-import sys
 from pathlib import Path
 
 import polars as pl
@@ -108,9 +107,7 @@ def preprocess_criteo(
             pl.col("touchpoint_number").max().over("uid").alias("_max_tp"),
         )
         .with_columns(
-            (
-                (pl.col("conversion") == 1) & (pl.col("touchpoint_number") == pl.col("_max_tp"))
-            )
+            ((pl.col("conversion") == 1) & (pl.col("touchpoint_number") == pl.col("_max_tp")))
             .cast(pl.Int64)
             .alias("is_conversion"),
         )

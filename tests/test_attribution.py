@@ -1,21 +1,32 @@
-"""Unit tests for attribution models."""
+"""Unit tests for attribution models.
+
+The attribution artifacts are generated files (gitignored) — these tests run
+locally after the pipeline. In CI without the artifacts they skip gracefully
+rather than failing (same pattern as tests/test_preprocess.py).
+"""
 
 import json
-import sys
-from pathlib import Path
+
+import pytest
 
 from attributor.config import MODEL_OUTPUT_DIR
 
+ATTRIBUTION_RESULTS_PATH = MODEL_OUTPUT_DIR / "attribution_comparison.json"
+
 
 def test_attribution_results_exist():
-    path = MODEL_OUTPUT_DIR / "attribution_comparison.json"
-    assert path.exists(), (
-        "Attribution results not found. Run python -m attributor.multi_touch_attribution first."
-    )
+    if not ATTRIBUTION_RESULTS_PATH.exists():
+        pytest.skip(
+            f"Attribution results not found at {ATTRIBUTION_RESULTS_PATH} "
+            "(run python -m attributor.multi_touch_attribution first)"
+        )
+    assert ATTRIBUTION_RESULTS_PATH.exists()
 
 
 def test_attribution_models_present():
-    with open(MODEL_OUTPUT_DIR / "attribution_comparison.json") as f:
+    if not ATTRIBUTION_RESULTS_PATH.exists():
+        pytest.skip(f"Attribution results not found at {ATTRIBUTION_RESULTS_PATH}")
+    with open(ATTRIBUTION_RESULTS_PATH) as f:
         data = json.load(f)
     expected_models = [
         "first_touch",
@@ -30,7 +41,9 @@ def test_attribution_models_present():
 
 
 def test_attribution_sums_to_100():
-    with open(MODEL_OUTPUT_DIR / "attribution_comparison.json") as f:
+    if not ATTRIBUTION_RESULTS_PATH.exists():
+        pytest.skip(f"Attribution results not found at {ATTRIBUTION_RESULTS_PATH}")
+    with open(ATTRIBUTION_RESULTS_PATH) as f:
         data = json.load(f)
     for model, values in data.items():
         total = sum(values.values())

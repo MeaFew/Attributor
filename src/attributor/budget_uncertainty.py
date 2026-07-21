@@ -38,7 +38,6 @@ block bootstrap：把时间序列切成连续的 block（默认 7 天一块）�
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
 import matplotlib
@@ -241,7 +240,10 @@ def run_bootstrap(
         for c in spend_keys:
             spend_samples[c].append(float(res["optimal_spend"].get(c, np.nan)))
         cur, opt = res["current_revenue"], res["optimal_revenue"]
-        lift = (opt - cur) / abs(cur) * 100.0 if cur not in (0, np.nan) else np.nan
+        # cur 为 0 或 NaN 时无法计算 lift。NaN 不等于任何值（包括自身），
+        # 用 np.isfinite 显式判断，而不是 `cur not in (0, np.nan)` 这种
+        # 依赖对象身份/等值比较、对 NaN 实际无效的写法。
+        lift = (opt - cur) / abs(cur) * 100.0 if np.isfinite(cur) and cur != 0 else np.nan
         lift_samples.append(lift)
 
         if verbose and (i + 1) % 25 == 0:
@@ -595,8 +597,12 @@ def _print_summary(report: dict) -> None:
             f"  宽 ${d['ci_width']:>10,.0f}{ratio_str}"
         )
 
-    logger.info(f"\n  最稳定（CI 最窄）：{ordered[0][0]}  宽 ${ordered[0][1]['ci_width']:,.0f}")
-    logger.info(f"  最不确定（CI 最宽）：{ordered[-1][0]}  宽 ${ordered[-1][1]['ci_width']:,.0f}")
+    # ordered 可能为空（例如没有任何渠道汇总出 CI），下标访问前先防护
+    if ordered:
+        logger.info(f"\n  最稳定（CI 最窄）：{ordered[0][0]}  宽 ${ordered[0][1]['ci_width']:,.0f}")
+        logger.info(
+            f"  最不确定（CI 最宽）：{ordered[-1][0]}  宽 ${ordered[-1][1]['ci_width']:,.0f}"
+        )
 
     bl_lift = report["block_bootstrap_ci"].get("revenue_lift_pct", {})
     if bl_lift:
@@ -632,7 +638,11 @@ def main() -> None:
         help=f"block 大小（天，默认 {BLOCK_SIZE_DAYS}）",
     )
     args = parser.parse_args()
-    run(n_bootstrap=args.n_bootstrap, block_size=args.block_size)
+    try:
+        run(n_bootstrap=args.n_bootstrap, block_size=args.block_size)
+    except (FileNotFoundError, json.JSONDecodeError):
+        # 原因已由 load_mmm_results 记录；保持原有的非零退出行为（原 sys.exit(1)）。
+        raise SystemExit(1) from None
 
 
 if __name__ == "__main__":

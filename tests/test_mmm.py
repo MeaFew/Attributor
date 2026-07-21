@@ -1,19 +1,32 @@
-"""Unit tests for MMM model."""
+"""Unit tests for MMM model.
+
+The model artifacts are generated files (gitignored) — these tests run locally
+after the pipeline. In CI without the artifacts they skip gracefully rather
+than failing (same pattern as tests/test_preprocess.py).
+"""
 
 import json
-import sys
-from pathlib import Path
+
+import pytest
 
 from attributor.config import MODEL_OUTPUT_DIR
 
+MMM_RESULTS_PATH = MODEL_OUTPUT_DIR / "mmm_results.json"
+BUDGET_RESULTS_PATH = MODEL_OUTPUT_DIR / "budget_optimization.json"
+
 
 def test_mmm_results_exist():
-    path = MODEL_OUTPUT_DIR / "mmm_results.json"
-    assert path.exists(), "MMM results not found. Run python -m attributor.mmm_model first."
+    if not MMM_RESULTS_PATH.exists():
+        pytest.skip(
+            f"MMM results not found at {MMM_RESULTS_PATH} (run python -m attributor.mmm_model first)"
+        )
+    assert MMM_RESULTS_PATH.exists()
 
 
 def test_mmm_results_structure():
-    with open(MODEL_OUTPUT_DIR / "mmm_results.json") as f:
+    if not MMM_RESULTS_PATH.exists():
+        pytest.skip(f"MMM results not found at {MMM_RESULTS_PATH}")
+    with open(MMM_RESULTS_PATH) as f:
         data = json.load(f)
     assert "models" in data
     assert "ols" in data["models"]
@@ -23,5 +36,8 @@ def test_mmm_results_structure():
 
 
 def test_budget_results_exist():
-    path = MODEL_OUTPUT_DIR / "budget_optimization.json"
-    assert path.exists(), "Budget results not found. Run python -m attributor.budget_optimizer first."
+    if not BUDGET_RESULTS_PATH.exists():
+        pytest.skip(
+            f"Budget results not found at {BUDGET_RESULTS_PATH} (run python -m attributor.budget_optimizer first)"
+        )
+    assert BUDGET_RESULTS_PATH.exists()

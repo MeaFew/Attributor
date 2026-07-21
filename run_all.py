@@ -3,6 +3,7 @@
 Replaces `make all` on systems without GNU Make (e.g., Windows).
 Usage: python run_all.py [--output PREFIX]
 """
+
 import argparse
 import os
 import subprocess
@@ -28,7 +29,9 @@ def run(cmd: list[str], cwd: Path | None = None):
 
 def main():
     parser = argparse.ArgumentParser(description="Marketing Attribution full pipeline runner")
-    parser.add_argument("--output", type=str, default=None, help="Output path prefix for generated files")
+    parser.add_argument(
+        "--output", type=str, default=None, help="Output path prefix for generated files"
+    )
     args = parser.parse_args()
 
     here = Path(__file__).resolve().parent
@@ -39,33 +42,39 @@ def main():
     ensure_dirs()
 
     # Build step commands as argv lists; append --output if provided.
-    preprocess_cmd = ["python", "-m", "attributor.preprocess"]
+    # sys.executable (not the "python" literal) so the pipeline always uses the
+    # same interpreter that launched run_all.py — e.g. the project .venv.
+    preprocess_cmd = [sys.executable, "-m", "attributor.preprocess"]
     if args.output:
         preprocess_cmd += ["--output", args.output]
 
-    # NOTE on the attribution path: `make all` (Makefile) runs preprocess_criteo
-    # (REAL Criteo journeys), while this runner historically ran generate_touchpoints
-    # (SYNTHETIC). To unify the two, we attempt the real Criteo preprocessing and
-    # only fall back to synthetic generation if the raw Criteo TSV is absent (it is
-    # ~16M rows and not bundled). multi_touch_attribution.load_data() itself also
-    # falls back from Criteo to simulated parquet, so the downstream step is robust
-    # either way.
+    # NOTE on the attribution path: both `make all` (Makefile) and this runner
+    # attempt the real Criteo preprocessing and fall back to synthetic
+    # generation if the raw Criteo TSV is absent (it is ~16M rows and not
+    # bundled). multi_touch_attribution.load_data() itself also falls back from
+    # Criteo to simulated parquet, so the downstream step is robust either way.
     def _has_criteo():
         from attributor.config import CRITEO_RAW_PATH  # local import keeps top level cheap
 
         return CRITEO_RAW_PATH.exists()
 
     if _has_criteo():
-        attribution_prep = ("Criteo preprocessing", ["python", "-m", "attributor.preprocess_criteo"])
+        attribution_prep = (
+            "Criteo preprocessing",
+            [sys.executable, "-m", "attributor.preprocess_criteo"],
+        )
     else:
-        attribution_prep = ("Touchpoint Generation", ["python", "-m", "attributor.generate_touchpoints"])
+        attribution_prep = (
+            "Touchpoint Generation",
+            [sys.executable, "-m", "attributor.generate_touchpoints"],
+        )
 
     steps = [
         ("Preprocessing", preprocess_cmd),
-        ("MMM Modeling", ["python", "-m", "attributor.mmm_model"]),
+        ("MMM Modeling", [sys.executable, "-m", "attributor.mmm_model"]),
         attribution_prep,
-        ("Multi-touch Attribution", ["python", "-m", "attributor.multi_touch_attribution"]),
-        ("Budget Optimization", ["python", "-m", "attributor.budget_optimizer"]),
+        ("Multi-touch Attribution", [sys.executable, "-m", "attributor.multi_touch_attribution"]),
+        ("Budget Optimization", [sys.executable, "-m", "attributor.budget_optimizer"]),
     ]
 
     print("Marketing Attribution & Budget Optimization - Full Pipeline")

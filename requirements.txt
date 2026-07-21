@@ -1,6 +1,8 @@
-﻿# Data processing
+# Data processing
 polars>=0.20.0,<1.0.0
-numpy>=1.24.0
+# polars 0.20.x segfaults under numpy 2.x (hits tests/test_algorithms.py);
+# pin numpy<2 until polars is upgraded to a 1.x line.
+numpy>=1.24.0,<2.0.0
 pandas>=2.0.0,<3.0.0
 
 # Modeling & statistics

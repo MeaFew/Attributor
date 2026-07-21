@@ -5,14 +5,15 @@ hand-verifiable inputs. They do NOT depend on any pre-generated artifacts
 (run the pipeline scripts for those integration tests in the other test_* files).
 """
 
-import sys
-from pathlib import Path
-
 import numpy as np
 import polars as pl
 import pytest
 
-from attributor.budget_optimizer import extract_params, optimize_budget  # noqa: E402
+from attributor.budget_optimizer import (  # noqa: E402
+    _compute_current_spend,
+    extract_params,
+    optimize_budget,
+)
 from attributor.mmm_model import (  # noqa: E402
     chronological_split,
     fit_lasso,
@@ -470,3 +471,39 @@ class TestOptimizeBudget:
         )
         for ch, optimal in result["optimal_spend"].items():
             assert 10.0 <= optimal <= 300.0  # within [0.1x, 3x] of 100
+
+
+class TestComputeCurrentSpend:
+    """Regression tests for the current-spend baseline computation.
+
+    Guards the bug where an all-null spend column crashed with
+    ``float(None)`` TypeError before the fallback branch could run.
+    """
+
+    def test_all_null_column_falls_back_to_zero(self):
+        """All-null channel: mean is None -> fallback -> no non-zero values -> 0.0."""
+        df = pl.DataFrame(
+            {
+                "google_paid_search_spend": [100.0, 300.0],
+                "tiktok_spend": pl.Series([None, None], dtype=pl.Float64),
+            }
+        )
+        result = _compute_current_spend(df)
+        assert result["google_paid_search_spend"] == pytest.approx(200.0)
+        assert result["tiktok_spend"] == 0.0  # no TypeError, fallback ran
+        # Channels absent from the frame get 0.0
+        assert result["meta_facebook_spend"] == 0.0
+
+    def test_zero_mean_with_positive_values_uses_percentile_fallback(self):
+        """Mean <= 0 but positive values exist -> 10th percentile of non-zero."""
+        df = pl.DataFrame({"tiktok_spend": [-200.0, -100.0, 50.0, 100.0]})
+        result = _compute_current_spend(df)
+        expected = float(pl.Series([50.0, 100.0]).quantile(0.1))
+        assert result["tiktok_spend"] == pytest.approx(expected)
+        assert result["tiktok_spend"] > 0
+
+    def test_all_zero_column_falls_back_to_zero(self):
+        """All-zero channel: mean == 0 -> fallback -> no positive values -> 0.0."""
+        df = pl.DataFrame({"tiktok_spend": [0.0, 0.0, 0.0]})
+        result = _compute_current_spend(df)
+        assert result["tiktok_spend"] == 0.0

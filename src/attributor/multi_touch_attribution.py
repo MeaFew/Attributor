@@ -4,7 +4,6 @@ import argparse
 import json
 import math
 import re
-import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -264,6 +263,11 @@ def removal_effect_attribution(journeys: pl.DataFrame) -> dict[str, float]:
     if baseline_rate == 0:
         return {}
 
+    # iter_rows here is a deliberate readability/performance trade-off: it runs
+    # once over the journeys table (tens of thousands of rows) to collect the
+    # channel universe — negligible next to the 16.5M-row touchpoint processing —
+    # while the per-channel heavy lifting below is already vectorized (one-hot
+    # columns + aggregations). Keep the simple loop.
     all_channels = set()
     for row in journeys.iter_rows(named=True):
         all_channels.update(row["path"].split(" > "))

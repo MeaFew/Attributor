@@ -47,10 +47,11 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "raise NotImplementedError",
 ]
-# Baseline reflects current coverage. Note: test_algorithms.py (highest-cov
-# file) triggers a polars 0.20.x segfault under numpy 2.x; until polars is
-# upgraded those tests can't run, so the baseline is set conservatively.
-fail_under = 20
+# Baseline reflects current coverage. The polars 0.20.x + numpy 2.x segfault
+# that kept test_algorithms.py (highest-cov file) from running is resolved by
+# the numpy<2 pin in requirements.txt, so the gate now reflects the real
+# measured total (~41%) instead of a placeholder.
+fail_under = 40
 
 [tool.mypy]
 python_version = "3.11"

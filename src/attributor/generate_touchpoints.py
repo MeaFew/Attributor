@@ -1,7 +1,6 @@
 """Generate simulated user touchpoint data for multi-touch attribution."""
 
 import argparse
-import sys
 from pathlib import Path
 
 import numpy as np

@@ -28,8 +28,6 @@ from statsmodels.stats.outliers_influence import variance_inflation_factor
 from statsmodels.stats.stattools import durbin_watson
 
 matplotlib.use("Agg")
-import sys
-
 import matplotlib.pyplot as plt
 
 from attributor.config import (
@@ -46,7 +44,6 @@ logger = get_logger(__name__)
 
 # HOLDOUT_FRACTION now comes from config (single source of truth). MMM is a
 # daily time series, so the split is by date — never a random shuffle.
-# Log-spaced regularization grid; alpha is selected by time-series CV.
 # Log-spaced regularization grid; alpha is selected by time-series CV.
 RIDGE_ALPHAS = np.logspace(-3, 3, 13)
 LASSO_ALPHAS = np.logspace(-3, 1, 13)
@@ -113,7 +110,6 @@ def chronological_split(
 def _fit_regularized(
     X: np.ndarray,
     y: np.ndarray,
-    feature_names: list[str],
     kind: str,
     alpha: float,
 ) -> tuple[object, StandardScaler]:
@@ -135,7 +131,7 @@ def _cv_select_alpha(X: np.ndarray, y: np.ndarray, alphas: np.ndarray, kind: str
     for alpha in alphas:
         scores = []
         for tr_idx, va_idx in tscv.split(X):
-            model, scaler = _fit_regularized(X[tr_idx], y[tr_idx], [], kind, float(alpha))
+            model, scaler = _fit_regularized(X[tr_idx], y[tr_idx], kind, float(alpha))
             y_pred = model.predict(scaler.transform(X[va_idx]))
             scores.append(r2_score(y[va_idx], y_pred))
         mean_score = float(np.mean(scores))
@@ -213,7 +209,7 @@ def fit_ridge(
 ) -> dict:
     """Fit Ridge with standardized features and a CV-selected alpha."""
     alpha = _cv_select_alpha(X_train, y_train, RIDGE_ALPHAS, "ridge")
-    model, scaler = _fit_regularized(X_train, y_train, feature_names, "ridge", alpha)
+    model, scaler = _fit_regularized(X_train, y_train, "ridge", alpha)
 
     y_pred_train = model.predict(scaler.transform(X_train))
     y_pred_test = model.predict(scaler.transform(X_test))
@@ -248,7 +244,7 @@ def fit_lasso(
 ) -> dict:
     """Fit Lasso with standardized features and a CV-selected alpha."""
     alpha = _cv_select_alpha(X_train, y_train, LASSO_ALPHAS, "lasso")
-    model, scaler = _fit_regularized(X_train, y_train, feature_names, "lasso", alpha)
+    model, scaler = _fit_regularized(X_train, y_train, "lasso", alpha)
 
     y_pred_train = model.predict(scaler.transform(X_train))
     y_pred_test = model.predict(scaler.transform(X_test))
@@ -414,7 +410,7 @@ def run_mmm(df: pl.DataFrame, brand_id: str | None = None, territory: str | None
 
 
 def select_best_brand(df: pl.DataFrame) -> tuple[str, str]:
-    """Select brand+territory with most complete data."""
+    """Select brand+territory with the highest total spend."""
     summary = (
         df.group_by(["organisation_id", "territory_name"])
         .agg(

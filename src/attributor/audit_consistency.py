@@ -9,7 +9,6 @@ Add project-specific checks in the `main()` function.
 """
 
 import json
-import logging
 import re
 import sys
 from pathlib import Path

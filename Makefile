@@ -18,8 +18,17 @@ eda:
 mmm:
 	python -m attributor.mmm_model
 
+# Attribution data prep mirrors run_all.py: use the real Criteo journeys when
+# the raw TSV is present (config.CRITEO_RAW_PATH), otherwise generate synthetic
+# touchpoints. multi_touch_attribution.load_data() itself also falls back from
+# Criteo to simulated parquet, so the downstream step is robust either way.
 attribution:
-	python -m attributor.preprocess_criteo
+	@if [ -f data/raw/criteo_attribution_dataset.tsv.gz ]; then \
+		python -m attributor.preprocess_criteo; \
+	else \
+		echo "Criteo raw data not found (data/raw/criteo_attribution_dataset.tsv.gz); falling back to synthetic touchpoints."; \
+		python -m attributor.generate_touchpoints; \
+	fi
 	python -m attributor.multi_touch_attribution
 
 attribution-simulated:
@@ -33,7 +42,7 @@ dashboard:
 	streamlit run dashboard/app.py
 
 test:
-	pytest tests/ -v --cov=attributor --cov-report=term-missing --cov-fail-under=20
+	pytest tests/ -v --cov=attributor --cov-report=term-missing --cov-fail-under=40
 
 typecheck:
 	mypy src/attributor
