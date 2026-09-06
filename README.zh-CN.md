@@ -8,7 +8,7 @@
 
 *MMM · 多触点归因 · 预算优化 · block bootstrap 置信区间*
 
-<a href="https://github.com/MeaFew/attributor/actions"><img src="https://github.com/MeaFew/attributor/workflows/CI/badge.svg" alt="CI"></a>
+<a href="https://github.com/MeaFew/Attributor/actions"><img src="https://github.com/MeaFew/Attributor/workflows/CI/badge.svg" alt="CI"></a>
 <img src="https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white" alt="Python">
 <img src="https://img.shields.io/badge/code%20style-ruff-000000?logo=ruff&logoColor=white" alt="Ruff">
 <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
@@ -192,7 +192,7 @@ revenue_i = coef_i · spend_i^gamma / (spend_i^gamma + tau_i^gamma)
 ## 快速开始
 
 ```bash
-git clone https://github.com/MeaFew/attributor.git
+git clone https://github.com/MeaFew/Attributor.git
 cd attributor
 
 # 1. 创建并激活 Python 3.11 虚拟环境
@@ -312,10 +312,10 @@ attributor/
 
 | 项目 | 仓库 | 简介 |
 |------|------|------|
-| 电商用户行为分析 | [MeaFew/shoplytics](https://github.com/MeaFew/shoplytics) | 2,900万条真实用户行为数据，10大分析模块 |
-| 信用风险评分 | [MeaFew/riskscore](https://github.com/MeaFew/riskscore) | WOE/IV + XGBoost/LightGBM + SHAP 可解释性 |
-| 多元时序预测 | [MeaFew/foresight](https://github.com/MeaFew/foresight) | LSTM / Transformer / XGBoost 时序预测对比 |
-| 图神经网络反欺诈 | [MeaFew/graphguard](https://github.com/MeaFew/graphguard) | 图神经网络非法交易检测 |
+| 电商用户行为分析 | [MeaFew/shoplytics](https://github.com/MeaFew/Shoplytics) | 2,900万条真实用户行为数据，10大分析模块 |
+| 信用风险评分 | [MeaFew/riskscore](https://github.com/MeaFew/RiskScore) | WOE/IV + XGBoost/LightGBM + SHAP 可解释性 |
+| 多元时序预测 | [MeaFew/foresight](https://github.com/MeaFew/Foresight) | LSTM / Transformer / XGBoost 时序预测对比 |
+| 图神经网络反欺诈 | 规划中（未建仓） |
 
 ---
 

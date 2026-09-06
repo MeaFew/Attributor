@@ -6,7 +6,7 @@
     <b>A full-stack marketing effectiveness evaluation and budget optimization system — from macro MMM to micro multi-touch attribution</b>
   </p>
   <p align="center">
-    <a href="https://github.com/MeaFew/attributor/actions"><img src="https://github.com/MeaFew/attributor/workflows/CI/badge.svg" alt="CI"></a>
+    <a href="https://github.com/MeaFew/Attributor/actions"><img src="https://github.com/MeaFew/Attributor/workflows/CI/badge.svg" alt="CI"></a>
 <a href="https://meafew.github.io/attributor/"><img src="https://img.shields.io/badge/pages-live-blue?logo=githubpages&logoColor=white" alt="GitHub Pages"></a>
     <img src="https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white" alt="Python">
     <img src="https://img.shields.io/badge/code%20style-ruff-000000?logo=ruff&logoColor=white" alt="Ruff">
@@ -102,7 +102,7 @@ flowchart LR
 ## Quick Start
 
 ```bash
-git clone https://github.com/MeaFew/attributor.git
+git clone https://github.com/MeaFew/Attributor.git
 cd attributor
 
 # 1. Create and activate a Python 3.11 virtual environment
@@ -303,10 +303,10 @@ attributor/
 
 | Project | Repo | Description |
 |---------|------|-------------|
-| E-commerce User Analytics | [MeaFew/shoplytics](https://github.com/MeaFew/shoplytics) | 29M real user behavior records, 10 analytical modules |
-| Credit Risk Scoring | [MeaFew/riskscore](https://github.com/MeaFew/riskscore) | WOE/IV + XGBoost/LightGBM + SHAP interpretability |
-| Multivariate Time Series | [MeaFew/foresight](https://github.com/MeaFew/foresight) | LSTM / Transformer / XGBoost forecasting benchmarks |
-| Graph Fraud Detection | [MeaFew/graphguard](https://github.com/MeaFew/graphguard) | GNN illicit transaction detection (Elliptic) |
+| E-commerce User Analytics | [MeaFew/shoplytics](https://github.com/MeaFew/Shoplytics) | 29M real user behavior records, 10 analytical modules |
+| Credit Risk Scoring | [MeaFew/riskscore](https://github.com/MeaFew/RiskScore) | WOE/IV + XGBoost/LightGBM + SHAP interpretability |
+| Multivariate Time Series | [MeaFew/foresight](https://github.com/MeaFew/Foresight) | LSTM / Transformer / XGBoost forecasting benchmarks |
+| Graph Fraud Detection | *planned* | GNN illicit transaction detection (Elliptic) |
 
 ## License
 
